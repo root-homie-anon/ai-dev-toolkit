@@ -1,9 +1,10 @@
 {
   "_meta": {
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Global skill library for Claude Code Agent Factory",
     "source": "https://github.com/alirezarezvani/claude-skills",
-    "install_path": "~/.claude/skills/"
+    "install_path": "~/.claude/skills/",
+    "changelog": "1.1.0 — added remotion role, video-compiler role, and youtube-automation task keywords"
   },
 
   "roles": {
@@ -24,7 +25,7 @@
         "engineering-team/code-reviewer",
         "engineering/api-design-reviewer"
       ],
-      "description": "UI, React Native, web interfaces"
+      "description": "UI, React, web interfaces"
     },
     "fullstack": {
       "base_skills": [
@@ -134,6 +135,25 @@
         "engineering-team/senior-architect"
       ],
       "description": "Strategic advisory, C-level decisions"
+    },
+    "video-compiler": {
+      "base_skills": [
+        "engineering-team/senior-frontend",
+        "engineering-team/senior-backend",
+        "engineering-team/senior-architect",
+        "engineering-team/code-reviewer"
+      ],
+      "description": "Programmatic video compilation using Remotion (React-based). Handles composition, Ken Burns motion, crossfade transitions, audio layering, 16:9 and 9:16 formats, thumbnail generation."
+    },
+    "content-automation": {
+      "base_skills": [
+        "engineering-team/senior-backend",
+        "engineering-team/senior-architect",
+        "engineering/api-design-reviewer",
+        "engineering/agent-workflow-designer",
+        "marketing-skill/content-creator"
+      ],
+      "description": "AI-powered content generation pipelines. Script writing, asset orchestration, multi-API workflows, approval flows, YouTube automation."
     }
   },
 
@@ -188,6 +208,26 @@
     "onboarding": ["engineering/codebase-onboarding", "project-management/senior-pm-expert"],
     "runbook": ["engineering/runbook-generator", "engineering-team/senior-devops"],
     "mcp": ["engineering/mcp-server-builder", "engineering-team/senior-architect"],
-    "agent": ["engineering/agent-designer", "engineering/agent-workflow-designer"]
+    "agent": ["engineering/agent-designer", "engineering/agent-workflow-designer"],
+    "remotion": ["engineering-team/senior-frontend", "engineering-team/senior-backend", "engineering-team/senior-architect"],
+    "video": ["engineering-team/senior-frontend", "engineering-team/senior-backend", "engineering-team/senior-architect"],
+    "video compilation": ["engineering-team/senior-frontend", "engineering-team/senior-architect"],
+    "video automation": ["engineering-team/senior-backend", "engineering/agent-workflow-designer", "engineering-team/senior-architect"],
+    "youtube": ["engineering-team/senior-backend", "engineering/api-design-reviewer", "engineering/agent-workflow-designer"],
+    "youtube automation": ["engineering-team/senior-backend", "engineering/agent-workflow-designer", "engineering-team/senior-architect"],
+    "elevenlabs": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
+    "voice over": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
+    "tts": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
+    "flux": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
+    "image generation": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
+    "sonauto": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
+    "music generation": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
+    "kling": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
+    "telegram": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
+    "telegram bot": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
+    "ken burns": ["engineering-team/senior-frontend", "engineering-team/senior-architect"],
+    "thumbnail": ["engineering-team/senior-frontend", "marketing-skill/content-creator"],
+    "script generation": ["marketing-skill/content-creator", "engineering/agent-workflow-designer"],
+    "content pipeline": ["engineering/agent-workflow-designer", "engineering-team/senior-backend", "marketing-skill/content-creator"]
   }
 }
