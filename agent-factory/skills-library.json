@@ -1,10 +1,10 @@
 {
   "_meta": {
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "Global skill library for Claude Code Agent Factory",
     "source": "https://github.com/alirezarezvani/claude-skills",
     "install_path": "~/.claude/skills/",
-    "changelog": "1.1.0 — added remotion role, video-compiler role, and youtube-automation task keywords"
+    "changelog": "1.2.0 — replaced Kling with Runway ML, added runway/image-to-video keywords. 1.1.0 — added remotion role, video-compiler role, and youtube-automation task keywords"
   },
 
   "roles": {
@@ -222,7 +222,9 @@
     "image generation": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
     "sonauto": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
     "music generation": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
-    "kling": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
+    "runway": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
+    "runway ml": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
+    "image to video": ["engineering-team/senior-backend", "engineering-team/senior-frontend", "engineering-team/senior-architect"],
     "telegram": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
     "telegram bot": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
     "ken burns": ["engineering-team/senior-frontend", "engineering-team/senior-architect"],
