@@ -1,0 +1,28 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.development
+.env.staging
+.env.production
+.env.prod
+
+# Secret files
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.json
+secrets.yaml
+credentials.json
+service-account.json
+client_secret.json
+
+# Vault — never commit
+vault.json
+config.json
+.keys/
+
+# Session data
+state/
+*.jsonl

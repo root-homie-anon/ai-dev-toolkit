@@ -1,22 +1,17 @@
 # Reference: codebase-to-course
 
 **Repo:** https://github.com/zarazhangrui/codebase-to-course
-**License:** Not specified
-**Author:** Zara (@zarazhangrui)
+**License:** MIT
+**Author:** zarazhangrui
 
 ## What It Does
-Turns any codebase into a beautiful, interactive single-page HTML course. Generates scroll-based modules, code/plain-English side-by-side translations, animated visualizations, interactive quizzes, and glossary tooltips.
+Turns any codebase into a beautiful, interactive single-page HTML course that teaches how the code works. Designed for non-technical audiences. Generates self-contained HTML with embedded styling and navigation.
 
 ## How It's Integrated
-- **Install:** `initial-setup.sh` — git clone to `~/.claude/skills/codebase-to-course/`
-- **Scope:** System-wide (trigger phrase "turn this into a course" in any CC session)
-- **Not in skills-library.json** — utility skill, not role/project specific
+- Bundled in `skills/codebase-to-course/` — installed to `~/.claude/skills/` by `initial-setup.sh`
+- Mapped to `frontend` agent in `skills-library.json`
+- Activated by task keywords: course, tutorial, learn
 
-## Trigger Phrases
-- "Turn this into a course"
-- "Explain this codebase interactively"
-- "Make a course from this project"
-- "Teach me how this code works"
-
-## Update
-`update.sh` runs `git pull` in the cloned skill directory.
+## Contents
+- `SKILL.md` — Skill definition and course generation instructions
+- `references/` — Template examples and formatting guidance

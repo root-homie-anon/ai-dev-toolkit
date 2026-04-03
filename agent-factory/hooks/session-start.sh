@@ -14,6 +14,7 @@ set -euo pipefail
 # ── Paths ────────────────────────────────────────────────────
 CLAUDE_HOME="${HOME}/.claude"
 AGENT_FACTORY="${CLAUDE_HOME}/scripts/agent-factory.sh"
+SYNC_ENV="${CLAUDE_HOME}/scripts/sync-env.sh"
 PROJECT_NAME="${1:-$(basename "$(pwd)")}"
 PROJECT_PATH="${2:-$(pwd)}"
 PROJECT_AGENTS_DIR="${PROJECT_PATH}/.claude/agents"
@@ -52,13 +53,28 @@ count_project_agents() {
   find "$PROJECT_AGENTS_DIR" -name "*.md" 2>/dev/null | wc -l | tr -d ' '
 }
 
+# ── Sync master env keys into this project ───────────────────
+sync_env() {
+  if [[ -f "$SYNC_ENV" ]] && [[ -f "${HOME}/.env.master" ]]; then
+    log "Syncing ~/.env.master into project .env ..."
+    bash "$SYNC_ENV" "$PROJECT_PATH"
+  else
+    [[ ! -f "${HOME}/.env.master" ]] && log "No ~/.env.master found — skipping env sync."
+    [[ ! -f "$SYNC_ENV" ]]          && log "No sync-env.sh found at ${SYNC_ENV} — skipping env sync."
+  fi
+}
+
 # ── Main ─────────────────────────────────────────────────────
 main() {
   echo ""
   echo -e "${BOLD}${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-  echo -e "${BOLD}  🚀 Claude Code — Agent Factory  ${RESET}"
+  echo -e "${BOLD}  Claude Code — Agent Factory  ${RESET}"
   echo -e "${BOLD}${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
   echo -e "  Project: ${BOLD}${PROJECT_NAME}${RESET}"
+  echo ""
+
+  # Sync master env keys before doing anything else
+  sync_env
   echo ""
 
   local count
@@ -80,7 +96,7 @@ main() {
   if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
     if [[ ! -f "$AGENT_FACTORY" ]]; then
       echo "ERROR: agent-factory.sh not found at ${AGENT_FACTORY}"
-      echo "Run setup first: bash ~/ai-dev-toolkit/initial-setup.sh"
+      echo "Run setup first: bash ~/ai-dev-toolkit/setup.sh"
       exit 1
     fi
     bash "$AGENT_FACTORY" "$PROJECT_NAME" "$PROJECT_PATH"

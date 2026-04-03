@@ -1,0 +1,1286 @@
+#!/usr/bin/env python3
+"""
+KeyMaster — Centralized API key manager for local development.
+
+Stores all keys in ~/.keys/vault.json. Generates per-project .env files
+from a single source of truth. Tracks rotation history.
+
+Usage:
+    keymaster init                          Import existing .env files
+    keymaster status                        Dashboard overview
+    keymaster list [--project P] [--shared] List keys with optional filter
+    keymaster add KEY                       Add or update a key interactively
+    keymaster get KEY [--unmask]            Show a key (masked by default)
+    keymaster rotate KEY                    Rotate a key across all projects
+    keymaster sync [PROJECT]                Regenerate .env files from vault
+    keymaster audit                         Check for security issues
+    keymaster projects                      List registered projects
+    keymaster remove KEY [--project P]      Remove a key
+    keymaster history [KEY]                 Show rotation history
+    keymaster require PROJECT KEY [...]     Declare keys a project needs (creates keys.json)
+    keymaster check [PROJECT]               Check if a project has all required keys
+"""
+
+import argparse
+import json
+import os
+import re
+import shutil
+import sys
+from datetime import datetime
+from pathlib import Path
+from getpass import getpass
+
+# ── Paths ────────────────────────────────────────────────────────────────────
+
+KEYS_DIR = Path.home() / ".keys"
+VAULT_PATH = KEYS_DIR / "vault.json"
+CONFIG_PATH = KEYS_DIR / "config.json"
+HISTORY_DIR = KEYS_DIR / "history"
+PROJECTS_DIR = Path.home() / "projects"
+
+# ── Styling ──────────────────────────────────────────────────────────────────
+
+BOLD = "\033[1m"
+DIM = "\033[2m"
+RED = "\033[31m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+BLUE = "\033[34m"
+CYAN = "\033[36m"
+RESET = "\033[0m"
+
+SECRET_PATTERNS = re.compile(
+    r"(SECRET|KEY|TOKEN|PASSWORD|PASS|CREDENTIAL|DSN|AUTH|PRIVATE|CERT|API)",
+    re.IGNORECASE,
+)
+
+CATEGORY_PATTERNS = {
+    "ai": re.compile(r"(ANTHROPIC|OPENAI|CLAUDE|GEMINI|REPLICATE|FAL_|SONAUTO|TAVILY)", re.I),
+    "social": re.compile(r"(REDDIT|TELEGRAM|YOUTUBE|TIKTOK|TWITTER)", re.I),
+    "database": re.compile(r"(DATABASE|SUPABASE|MONGO|POSTGRES|REDIS|DB_)", re.I),
+    "payment": re.compile(r"(STRIPE|PAYPAL|SHOPIFY)", re.I),
+    "storage": re.compile(r"(AWS|S3_|GCS_|BUCKET)", re.I),
+    "media": re.compile(r"(ELEVENLABS|ZAPCAP|BFL_|FLUX_|FIRECRAWL)", re.I),
+    "auth": re.compile(r"(AUTH_|JWT_|SESSION|OAUTH|CLIENT_ID|CLIENT_SECRET)", re.I),
+    "infra": re.compile(r"(SENTRY|DATADOG|DD_|WEBHOOK|NOTIFICATION)", re.I),
+    "config": re.compile(r"(PORT|HOST|URL|ENV|NODE_ENV|LOG_|DIR|PATH|LEVEL|INTERVAL|THRESHOLD|MAX_|MIN_|MODEL)", re.I),
+}
+
+
+def detect_category(key_name: str) -> str:
+    for cat, pattern in CATEGORY_PATTERNS.items():
+        if pattern.search(key_name):
+            return cat
+    return "other"
+
+
+def is_secret(key_name: str) -> bool:
+    if detect_category(key_name) == "config":
+        # Config keys that also match SECRET_PATTERNS (e.g. PORTAL_SECRET_KEY)
+        # should still be treated as secrets
+        if SECRET_PATTERNS.search(key_name):
+            return True
+        return False
+    return True
+
+
+def mask_value(value: str) -> str:
+    if len(value) <= 8:
+        return "*" * len(value)
+    return value[:4] + "*" * (len(value) - 8) + value[-4:]
+
+
+# ── Vault I/O ────────────────────────────────────────────────────────────────
+
+def load_vault() -> dict:
+    if VAULT_PATH.exists():
+        with open(VAULT_PATH) as f:
+            return json.load(f)
+    return {"shared": {}, "project": {}}
+
+
+def save_vault(vault: dict):
+    VAULT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(VAULT_PATH, "w") as f:
+        json.dump(vault, f, indent=2)
+    os.chmod(VAULT_PATH, 0o600)
+
+
+def load_config() -> dict:
+    if CONFIG_PATH.exists():
+        with open(CONFIG_PATH) as f:
+            return json.load(f)
+    return {"projects_dir": str(PROJECTS_DIR), "projects": {}}
+
+
+def save_config(config: dict):
+    with open(CONFIG_PATH, "w") as f:
+        json.dump(config, f, indent=2)
+
+
+def log_history(key_name: str, action: str, projects: list, old_masked: str = "", new_masked: str = ""):
+    HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "key": key_name,
+        "action": action,
+        "projects": projects,
+        "old_value": old_masked,
+        "new_value": new_masked,
+    }
+    log_file = HISTORY_DIR / "audit.jsonl"
+    with open(log_file, "a") as f:
+        f.write(json.dumps(entry) + "\n")
+    os.chmod(log_file, 0o600)
+
+
+# ── .env Parsing ─────────────────────────────────────────────────────────────
+
+def parse_env_file(path: Path) -> dict:
+    """Parse a .env file into key-value pairs, preserving order."""
+    result = {}
+    if not path.exists():
+        return result
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)$', line)
+            if m:
+                key = m.group(1)
+                val = m.group(2).strip().strip('"').strip("'")
+                result[key] = val
+    return result
+
+
+def discover_projects() -> dict:
+    """Find all project directories with .env files."""
+    projects = {}
+    pdir = PROJECTS_DIR
+    if not pdir.exists():
+        return projects
+    for d in sorted(pdir.iterdir()):
+        if d.is_dir() and not d.name.startswith("."):
+            projects[d.name] = {"path": str(d)}
+    return projects
+
+
+# ── Commands ─────────────────────────────────────────────────────────────────
+
+def cmd_init(args):
+    """Import existing .env files into the vault."""
+    print(f"{BOLD}KeyMaster Init{RESET}")
+    print(f"Scanning {PROJECTS_DIR} for .env files...\n")
+
+    config = load_config()
+    config["projects"] = discover_projects()
+    save_config(config)
+
+    # Collect all keys from all projects
+    all_keys = {}  # key_name -> {value: str, projects: [str]}
+    project_envs = {}
+
+    for name, info in config["projects"].items():
+        env_path = Path(info["path"]) / ".env"
+        if env_path.exists():
+            kvs = parse_env_file(env_path)
+            project_envs[name] = kvs
+            for k, v in kvs.items():
+                if k not in all_keys:
+                    all_keys[k] = {}
+                if v not in all_keys[k]:
+                    all_keys[k][v] = []
+                all_keys[k][v].append(name)
+
+    if not all_keys:
+        print("No .env files found. Use 'keymaster add' to start adding keys.")
+        return
+
+    # Determine shared vs project-specific
+    vault = {"shared": {}, "project": {}}
+    shared_count = 0
+    project_count = 0
+
+    for key_name, value_map in sorted(all_keys.items()):
+        cat = detect_category(key_name)
+        now = datetime.now().strftime("%Y-%m-%d")
+
+        if len(value_map) == 1:
+            value = list(value_map.keys())[0]
+            projects = list(value_map.values())[0]
+
+            if len(projects) > 1:
+                # Same value across multiple projects = shared
+                vault["shared"][key_name] = {
+                    "value": value,
+                    "projects": sorted(projects),
+                    "category": cat,
+                    "added": now,
+                    "last_rotated": now,
+                }
+                shared_count += 1
+            else:
+                # Single project = project-specific
+                proj = projects[0]
+                if proj not in vault["project"]:
+                    vault["project"][proj] = {}
+                vault["project"][proj][key_name] = {
+                    "value": value,
+                    "category": cat,
+                    "added": now,
+                    "last_rotated": now,
+                }
+                project_count += 1
+        else:
+            # Same key name, different values across projects
+            for value, projects in value_map.items():
+                if len(projects) > 1:
+                    # Multiple projects share this value
+                    vault["shared"][key_name] = {
+                        "value": value,
+                        "projects": sorted(projects),
+                        "category": cat,
+                        "added": now,
+                        "last_rotated": now,
+                    }
+                    shared_count += 1
+                else:
+                    proj = projects[0]
+                    if proj not in vault["project"]:
+                        vault["project"][proj] = {}
+                    vault["project"][proj][key_name] = {
+                        "value": value,
+                        "category": cat,
+                        "added": now,
+                        "last_rotated": now,
+                    }
+                    project_count += 1
+
+    save_vault(vault)
+
+    print(f"  {GREEN}Imported {shared_count} shared keys{RESET}")
+    print(f"  {CYAN}Imported {project_count} project-specific keys{RESET}")
+    print(f"  {BOLD}{len(config['projects'])} projects{RESET} registered\n")
+
+    # Show summary
+    if vault["shared"]:
+        print(f"{BOLD}Shared keys:{RESET}")
+        for k, info in sorted(vault["shared"].items()):
+            projs = ", ".join(info["projects"])
+            print(f"  {GREEN}{k}{RESET} -> {projs}")
+
+    print(f"\n{YELLOW}Run 'keymaster sync' to regenerate all .env files from the vault.{RESET}")
+    print(f"{YELLOW}Run 'keymaster audit' to check for security issues.{RESET}")
+
+
+def cmd_status(args):
+    """Dashboard overview."""
+    vault = load_vault()
+    config = load_config()
+
+    shared = vault.get("shared", {})
+    project_keys = vault.get("project", {})
+
+    total_shared = len(shared)
+    total_project = sum(len(v) for v in project_keys.values())
+    total_projects = len(config.get("projects", {}))
+
+    print(f"\n{BOLD}KeyMaster Status{RESET}")
+    print(f"{'=' * 50}")
+    print(f"  Vault:     {VAULT_PATH}")
+    print(f"  Projects:  {total_projects} registered")
+    print(f"  Keys:      {total_shared} shared + {total_project} project-specific = {total_shared + total_project} total")
+
+    # Category breakdown
+    categories = {}
+    for k, info in shared.items():
+        cat = info.get("category", "other")
+        categories[cat] = categories.get(cat, 0) + 1
+    for proj_data in project_keys.values():
+        for k, info in proj_data.items():
+            cat = info.get("category", "other")
+            categories[cat] = categories.get(cat, 0) + 1
+
+    if categories:
+        print(f"\n  {BOLD}By category:{RESET}")
+        for cat in sorted(categories):
+            print(f"    {cat:12} {categories[cat]}")
+
+    # Rotation age warnings
+    old_keys = []
+    now = datetime.now()
+    for k, info in shared.items():
+        last = info.get("last_rotated", info.get("added", ""))
+        if last:
+            try:
+                age = (now - datetime.strptime(last, "%Y-%m-%d")).days
+                if age > 90:
+                    old_keys.append((k, age))
+            except ValueError:
+                pass
+
+    for proj, proj_data in project_keys.items():
+        for k, info in proj_data.items():
+            last = info.get("last_rotated", info.get("added", ""))
+            if last:
+                try:
+                    age = (now - datetime.strptime(last, "%Y-%m-%d")).days
+                    if age > 90:
+                        old_keys.append((f"{k} ({proj})", age))
+                except ValueError:
+                    pass
+
+    if old_keys:
+        print(f"\n  {YELLOW}{BOLD}Keys due for rotation (>90 days):{RESET}")
+        for k, age in sorted(old_keys, key=lambda x: -x[1]):
+            print(f"    {YELLOW}{k}: {age} days old{RESET}")
+
+    # Projects without .env
+    for name, info in config.get("projects", {}).items():
+        env_path = Path(info["path"]) / ".env"
+        if not env_path.exists() and (name in project_keys or any(name in v.get("projects", []) for v in shared.values())):
+            print(f"\n  {RED}Missing .env: {name} (has keys in vault but no .env on disk — run 'keymaster sync'){RESET}")
+
+    print()
+
+
+def cmd_list(args):
+    """List all keys."""
+    vault = load_vault()
+    shared = vault.get("shared", {})
+    project_keys = vault.get("project", {})
+
+    filter_project = getattr(args, "project", None)
+    show_shared_only = getattr(args, "shared", False)
+    show_category = getattr(args, "category", None)
+
+    print(f"\n{BOLD}{'Key':<35} {'Category':<10} {'Scope':<18} {'Last Rotated':<14} {'Value'}{RESET}")
+    print("-" * 105)
+
+    def print_key(name, info, scope):
+        cat = info.get("category", "other")
+        if show_category and cat != show_category:
+            return
+        rotated = info.get("last_rotated", "unknown")
+        val = info.get("value", "")
+        display_val = mask_value(val) if is_secret(name) else val
+        if len(display_val) > 30:
+            display_val = display_val[:30] + "..."
+        color = GREEN if scope.startswith("shared") else CYAN
+        print(f"  {color}{name:<33}{RESET} {cat:<10} {scope:<18} {rotated:<14} {DIM}{display_val}{RESET}")
+
+    # Shared keys
+    for k in sorted(shared):
+        info = shared[k]
+        projs = info.get("projects", [])
+        if filter_project and filter_project not in projs:
+            continue
+        scope = f"shared ({len(projs)})"
+        if not filter_project or not show_shared_only:
+            print_key(k, info, scope)
+
+    # Project keys
+    if not show_shared_only:
+        for proj in sorted(project_keys):
+            if filter_project and proj != filter_project:
+                continue
+            for k in sorted(project_keys[proj]):
+                info = project_keys[proj][k]
+                print_key(k, info, proj)
+
+    print()
+
+
+def cmd_add(args):
+    """Add or update a key interactively."""
+    vault = load_vault()
+    config = load_config()
+    key_name = args.key.upper()
+    now = datetime.now().strftime("%Y-%m-%d")
+
+    # Check if key already exists
+    existing = None
+    if key_name in vault["shared"]:
+        existing = "shared"
+        print(f"{YELLOW}Key '{key_name}' already exists as a shared key.{RESET}")
+    else:
+        for proj, keys in vault["project"].items():
+            if key_name in keys:
+                existing = proj
+                print(f"{YELLOW}Key '{key_name}' already exists in project '{proj}'.{RESET}")
+                break
+
+    if existing:
+        confirm = input("Update it? [y/N] ").strip().lower()
+        if confirm != "y":
+            print("Cancelled.")
+            return
+
+    # Get value
+    if is_secret(key_name):
+        value = getpass(f"Value for {key_name} (hidden): ")
+    else:
+        value = input(f"Value for {key_name}: ").strip()
+
+    if not value:
+        print("No value provided. Cancelled.")
+        return
+
+    cat = detect_category(key_name)
+    print(f"  Auto-detected category: {BOLD}{cat}{RESET}")
+
+    # Shared or project-specific?
+    projects = list(config.get("projects", {}).keys())
+    print(f"\n  Is this key shared across projects or specific to one?")
+    print(f"  1) Shared (used by multiple projects)")
+    print(f"  2) Project-specific")
+
+    choice = input("  Choice [1/2]: ").strip()
+
+    if choice == "1":
+        print(f"\n  Available projects: {', '.join(sorted(projects))}")
+        selected = input("  Projects (comma-separated, or 'all'): ").strip()
+        if selected.lower() == "all":
+            proj_list = sorted(projects)
+        else:
+            proj_list = [p.strip() for p in selected.split(",") if p.strip() in projects]
+
+        if not proj_list:
+            print("No valid projects selected. Cancelled.")
+            return
+
+        vault["shared"][key_name] = {
+            "value": value,
+            "projects": sorted(proj_list),
+            "category": cat,
+            "added": now,
+            "last_rotated": now,
+        }
+        # Remove from project-specific if it was there
+        for proj in proj_list:
+            if proj in vault["project"] and key_name in vault["project"][proj]:
+                del vault["project"][proj][key_name]
+
+        save_vault(vault)
+        log_history(key_name, "added" if not existing else "updated", proj_list, new_masked=mask_value(value))
+        print(f"\n  {GREEN}Saved shared key '{key_name}' for {len(proj_list)} projects.{RESET}")
+
+    elif choice == "2":
+        print(f"\n  Available projects: {', '.join(sorted(projects))}")
+        proj = input("  Project: ").strip()
+        if proj not in projects:
+            print(f"Unknown project '{proj}'. Cancelled.")
+            return
+
+        if proj not in vault["project"]:
+            vault["project"][proj] = {}
+        vault["project"][proj][key_name] = {
+            "value": value,
+            "category": cat,
+            "added": now,
+            "last_rotated": now,
+        }
+        # Remove from shared if it was there
+        if key_name in vault["shared"]:
+            vault["shared"][key_name]["projects"] = [
+                p for p in vault["shared"][key_name]["projects"] if p != proj
+            ]
+            if not vault["shared"][key_name]["projects"]:
+                del vault["shared"][key_name]
+
+        save_vault(vault)
+        log_history(key_name, "added" if not existing else "updated", [proj], new_masked=mask_value(value))
+        print(f"\n  {GREEN}Saved project key '{key_name}' for {proj}.{RESET}")
+    else:
+        print("Invalid choice. Cancelled.")
+        return
+
+    sync_prompt = input(f"\n  Sync .env files now? [Y/n] ").strip().lower()
+    if sync_prompt != "n":
+        _do_sync(vault, config)
+
+
+def cmd_get(args):
+    """Get a key value."""
+    vault = load_vault()
+    key_name = args.key.upper()
+    unmask = getattr(args, "unmask", False)
+
+    # Search shared
+    if key_name in vault["shared"]:
+        info = vault["shared"][key_name]
+        val = info["value"] if unmask else mask_value(info["value"])
+        projs = ", ".join(info["projects"])
+        print(f"\n  {BOLD}{key_name}{RESET} = {val}")
+        print(f"  Scope:    shared")
+        print(f"  Projects: {projs}")
+        print(f"  Category: {info.get('category', 'other')}")
+        print(f"  Rotated:  {info.get('last_rotated', 'unknown')}")
+        print()
+        return
+
+    # Search project keys
+    for proj, keys in vault["project"].items():
+        if key_name in keys:
+            info = keys[key_name]
+            val = info["value"] if unmask else mask_value(info["value"])
+            print(f"\n  {BOLD}{key_name}{RESET} = {val}")
+            print(f"  Scope:    {proj}")
+            print(f"  Category: {info.get('category', 'other')}")
+            print(f"  Rotated:  {info.get('last_rotated', 'unknown')}")
+            print()
+            return
+
+    print(f"{RED}Key '{key_name}' not found in vault.{RESET}")
+
+
+def cmd_rotate(args):
+    """Rotate a key — update value and sync to all projects."""
+    vault = load_vault()
+    config = load_config()
+    key_name = args.key.upper()
+    now = datetime.now().strftime("%Y-%m-%d")
+
+    # Find the key
+    target = None
+    affected_projects = []
+
+    if key_name in vault["shared"]:
+        target = ("shared", None)
+        old_value = vault["shared"][key_name]["value"]
+        affected_projects = vault["shared"][key_name]["projects"]
+    else:
+        for proj, keys in vault["project"].items():
+            if key_name in keys:
+                target = ("project", proj)
+                old_value = keys[key_name]["value"]
+                affected_projects = [proj]
+                break
+
+    if not target:
+        print(f"{RED}Key '{key_name}' not found in vault.{RESET}")
+        return
+
+    print(f"\n{BOLD}Rotating: {key_name}{RESET}")
+    print(f"  Current value: {DIM}{mask_value(old_value)}{RESET}")
+    print(f"  Affects: {', '.join(affected_projects)}")
+    print()
+
+    # Service-specific rotation hints
+    hints = {
+        "ANTHROPIC_API_KEY": "Rotate at: console.anthropic.com -> API Keys",
+        "STRIPE_SECRET_KEY": "Rotate at: Stripe Dashboard -> Developers -> API keys -> Roll key",
+        "ELEVENLABS_API_KEY": "Rotate at: elevenlabs.io -> Profile Settings -> API Key",
+        "TELEGRAM_BOT_TOKEN": "Rotate via: BotFather -> /revoke",
+        "YOUTUBE_API_KEY": "Rotate at: Google Cloud Console -> APIs & Services -> Credentials",
+        "SUPABASE_SERVICE_KEY": "Rotate at: Supabase Dashboard -> Settings -> API",
+        "REDDIT_CLIENT_SECRET": "Rotate at: reddit.com/prefs/apps",
+        "OANDA_API_KEY": "Rotate at: OANDA fxTrade account -> Manage API Access",
+        "GEMINI_API_KEY": "Rotate at: Google AI Studio -> API keys",
+        "REPLICATE_API_TOKEN": "Rotate at: replicate.com/account/api-tokens",
+        "ZAPCAP_API_KEY": "Rotate at: ZapCap dashboard -> API settings",
+        "FAL_KEY": "Rotate at: fal.ai -> Dashboard -> Keys",
+        "FIRECRAWL_API_KEY": "Rotate at: firecrawl.dev -> Dashboard -> API Keys",
+        "TAVILY_API_KEY": "Rotate at: tavily.com -> Dashboard -> API Keys",
+        "BFL_API_KEY": "Rotate at: Black Forest Labs dashboard",
+        "NOTION_API_TOKEN": "Rotate at: notion.so -> Settings -> Integrations",
+    }
+
+    hint = hints.get(key_name, "")
+    if hint:
+        print(f"  {CYAN}{hint}{RESET}\n")
+
+    print("  Steps:")
+    print("    1. Go to the service and generate a new key")
+    print("    2. Paste the new key below")
+    print("    3. KeyMaster will update the vault and all .env files")
+    print()
+
+    if is_secret(key_name):
+        new_value = getpass(f"  New value for {key_name} (hidden): ")
+    else:
+        new_value = input(f"  New value for {key_name}: ").strip()
+
+    if not new_value:
+        print("  No value provided. Cancelled.")
+        return
+
+    if new_value == old_value:
+        print(f"  {YELLOW}New value is the same as old value. Cancelled.{RESET}")
+        return
+
+    # Update vault
+    if target[0] == "shared":
+        vault["shared"][key_name]["value"] = new_value
+        vault["shared"][key_name]["last_rotated"] = now
+    else:
+        vault["project"][target[1]][key_name]["value"] = new_value
+        vault["project"][target[1]][key_name]["last_rotated"] = now
+
+    save_vault(vault)
+    log_history(key_name, "rotated", affected_projects, mask_value(old_value), mask_value(new_value))
+
+    print(f"\n  {GREEN}Vault updated.{RESET}")
+
+    # Sync affected projects
+    _do_sync(vault, config, only_projects=affected_projects)
+
+    print(f"\n  {GREEN}Rotation complete. {len(affected_projects)} project(s) updated.{RESET}")
+    print(f"  {DIM}Old: {mask_value(old_value)}{RESET}")
+    print(f"  {DIM}New: {mask_value(new_value)}{RESET}\n")
+
+
+def _load_manifest(project_path: str) -> dict:
+    """Load a project's keys.json manifest if it exists."""
+    manifest_path = Path(project_path) / "keys.json"
+    if manifest_path.exists():
+        with open(manifest_path) as f:
+            return json.load(f)
+    return {}
+
+
+def _resolve_alias(vault_key: str, project_name: str, shared_info: dict) -> str:
+    """Resolve alias for a shared key in a specific project."""
+    aliases = shared_info.get("aliases", {})
+    return aliases.get(project_name, vault_key)
+
+
+def _do_sync(vault: dict, config: dict, only_projects: list = None):
+    """Generate .env files for projects from the vault."""
+    projects = config.get("projects", {})
+    shared = vault.get("shared", {})
+    project_keys = vault.get("project", {})
+    synced = 0
+
+    for name, info in sorted(projects.items()):
+        if only_projects and name not in only_projects:
+            continue
+
+        # Load manifest for this project
+        manifest = _load_manifest(info["path"])
+        manifest_keys = manifest.get("keys", {})
+
+        # Collect keys for this project
+        env_lines = []
+
+        # Shared keys assigned to this project (vault assignment)
+        shared_for_proj = {}
+        for k, kinfo in sorted(shared.items()):
+            if name in kinfo.get("projects", []):
+                env_name = _resolve_alias(k, name, kinfo)
+                shared_for_proj[env_name] = (k, kinfo["value"])
+
+        # Also check manifest — if it requests a key by alias or vault name, resolve it
+        for req_key, req_info in manifest_keys.items():
+            source = req_info.get("source")
+            if source and source in shared:
+                if name not in shared[source].get("projects", []):
+                    # Manifest requests it but vault doesn't have this project listed — skip
+                    # (will be caught by `keymaster check`)
+                    continue
+                env_name = req_key  # manifest key name is what goes in .env
+                if env_name not in shared_for_proj:
+                    shared_for_proj[env_name] = (source, shared[source]["value"])
+
+        # Project-specific keys
+        specific = {}
+        if name in project_keys:
+            for k, kinfo in sorted(project_keys[name].items()):
+                specific[k] = kinfo["value"]
+
+        if not shared_for_proj and not specific:
+            continue
+
+        # Build .env content
+        env_lines.append(f"# {name} — generated by KeyMaster on {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        env_lines.append(f"# Source: ~/.keys/vault.json — do not edit directly")
+        env_lines.append("")
+
+        if shared_for_proj:
+            env_lines.append("# ── Shared Keys ──────────────────────────────────")
+            by_cat = {}
+            for env_name, (vault_key, val) in shared_for_proj.items():
+                cat = shared[vault_key].get("category", "other")
+                by_cat.setdefault(cat, []).append((env_name, val))
+
+            for cat in sorted(by_cat):
+                env_lines.append(f"# [{cat}]")
+                for k, v in sorted(by_cat[cat]):
+                    env_lines.append(f"{k}={v}")
+                env_lines.append("")
+
+        if specific:
+            env_lines.append("# ── Project-Specific Keys ────────────────────────")
+            by_cat = {}
+            for k, v in specific.items():
+                cat = project_keys[name][k].get("category", "other")
+                by_cat.setdefault(cat, []).append((k, v))
+
+            for cat in sorted(by_cat):
+                env_lines.append(f"# [{cat}]")
+                for k, v in sorted(by_cat[cat]):
+                    env_lines.append(f"{k}={v}")
+                env_lines.append("")
+
+        # Write .env
+        env_path = Path(info["path"]) / ".env"
+        with open(env_path, "w") as f:
+            f.write("\n".join(env_lines) + "\n")
+        os.chmod(env_path, 0o600)
+        synced += 1
+        print(f"    {GREEN}Synced{RESET} {name}/.env ({len(shared_for_proj) + len(specific)} keys)")
+
+    if synced == 0:
+        print(f"    {DIM}No projects to sync.{RESET}")
+
+
+def cmd_sync(args):
+    """Sync vault to .env files."""
+    vault = load_vault()
+    config = load_config()
+
+    proj = getattr(args, "project", None)
+    only = [proj] if proj else None
+
+    print(f"\n{BOLD}Syncing .env files from vault...{RESET}\n")
+    _do_sync(vault, config, only_projects=only)
+    print(f"\n{GREEN}Done.{RESET} All .env files are 0600 (owner-read/write only).\n")
+
+
+def cmd_audit(args):
+    """Audit for security issues."""
+    vault = load_vault()
+    config = load_config()
+    issues = []
+    warnings = []
+
+    print(f"\n{BOLD}KeyMaster Security Audit{RESET}")
+    print("=" * 50)
+
+    # 1. Check .gitignore in all projects
+    for name, info in config.get("projects", {}).items():
+        gitignore = Path(info["path"]) / ".gitignore"
+        if not gitignore.exists():
+            issues.append(f"{RED}MISSING .gitignore: {name}{RESET} — .env could be committed")
+        else:
+            content = gitignore.read_text()
+            if ".env" not in content:
+                issues.append(f"{RED}NO .env IN .gitignore: {name}{RESET} — .env not protected")
+
+    # 2. Check vault file permissions
+    if VAULT_PATH.exists():
+        mode = oct(VAULT_PATH.stat().st_mode)[-3:]
+        if mode != "600":
+            issues.append(f"{RED}VAULT PERMISSIONS: {mode} (should be 600){RESET}")
+
+    # 3. Check for empty/weak values
+    for k, info in vault.get("shared", {}).items():
+        val = info.get("value", "")
+        if not val:
+            issues.append(f"{RED}EMPTY VALUE: {k} (shared){RESET}")
+        elif is_secret(k) and len(val) < 10:
+            warnings.append(f"{YELLOW}WEAK VALUE: {k} — only {len(val)} chars{RESET}")
+
+    for proj, keys in vault.get("project", {}).items():
+        for k, info in keys.items():
+            val = info.get("value", "")
+            if not val:
+                issues.append(f"{RED}EMPTY VALUE: {k} ({proj}){RESET}")
+            elif is_secret(k) and len(val) < 10:
+                warnings.append(f"{YELLOW}WEAK VALUE: {k} ({proj}) — only {len(val)} chars{RESET}")
+
+    # 4. Check for .env files not managed by vault
+    for name, info in config.get("projects", {}).items():
+        env_path = Path(info["path"]) / ".env"
+        if env_path.exists():
+            disk_keys = set(parse_env_file(env_path).keys())
+            vault_keys = set()
+            for k, kinfo in vault.get("shared", {}).items():
+                if name in kinfo.get("projects", []):
+                    vault_keys.add(k)
+            if name in vault.get("project", {}):
+                vault_keys.update(vault["project"][name].keys())
+
+            unmanaged = disk_keys - vault_keys
+            if unmanaged:
+                warnings.append(f"{YELLOW}UNMANAGED KEYS in {name}/.env: {', '.join(sorted(unmanaged))}{RESET}")
+
+    # 5. Check for duplicate values across different key names (possible copy-paste error)
+    all_secrets = {}
+    for k, info in vault.get("shared", {}).items():
+        if is_secret(k) and info.get("value"):
+            v = info["value"]
+            all_secrets.setdefault(v, []).append(k)
+    for proj, keys in vault.get("project", {}).items():
+        for k, info in keys.items():
+            if is_secret(k) and info.get("value"):
+                v = info["value"]
+                all_secrets.setdefault(v, []).append(f"{k} ({proj})")
+
+    for val, key_names in all_secrets.items():
+        if len(key_names) > 1:
+            # Skip if they're clearly the same key (e.g., YOUTUBE_API_KEY across projects)
+            base_names = [n.split(" (")[0] for n in key_names]
+            if len(set(base_names)) > 1:
+                warnings.append(f"{YELLOW}DUPLICATE VALUE across different keys: {', '.join(key_names)}{RESET}")
+
+    # Report
+    if issues:
+        print(f"\n  {RED}{BOLD}Issues ({len(issues)}):{RESET}")
+        for i in issues:
+            print(f"    {i}")
+
+    if warnings:
+        print(f"\n  {YELLOW}{BOLD}Warnings ({len(warnings)}):{RESET}")
+        for w in warnings:
+            print(f"    {w}")
+
+    if not issues and not warnings:
+        print(f"\n  {GREEN}No issues found.{RESET}")
+    elif issues:
+        print(f"\n  {BOLD}Fix issues above, then run 'keymaster audit' again.{RESET}")
+
+    print()
+
+
+def cmd_projects(args):
+    """List registered projects."""
+    config = load_config()
+    vault = load_vault()
+
+    print(f"\n{BOLD}Registered Projects{RESET}")
+    print("-" * 60)
+
+    for name in sorted(config.get("projects", {})):
+        info = config["projects"][name]
+        env_path = Path(info["path"]) / ".env"
+        gitignore = Path(info["path"]) / ".gitignore"
+
+        # Count keys for this project
+        shared_count = sum(
+            1 for k, v in vault.get("shared", {}).items()
+            if name in v.get("projects", [])
+        )
+        specific_count = len(vault.get("project", {}).get(name, {}))
+        total = shared_count + specific_count
+
+        env_status = f"{GREEN}env{RESET}" if env_path.exists() else f"{DIM}no env{RESET}"
+        git_status = f"{GREEN}gitignore{RESET}" if gitignore.exists() else f"{RED}NO gitignore{RESET}"
+
+        print(f"  {BOLD}{name:<25}{RESET} {total:>3} keys  [{env_status} | {git_status}]")
+
+    print()
+
+
+def cmd_remove(args):
+    """Remove a key from the vault."""
+    vault = load_vault()
+    config = load_config()
+    key_name = args.key.upper()
+    target_project = getattr(args, "project", None)
+
+    found = False
+
+    if key_name in vault["shared"]:
+        if target_project:
+            # Remove from one project only
+            projs = vault["shared"][key_name].get("projects", [])
+            if target_project in projs:
+                projs.remove(target_project)
+                if not projs:
+                    del vault["shared"][key_name]
+                    print(f"  Removed shared key '{key_name}' (no projects left).")
+                else:
+                    vault["shared"][key_name]["projects"] = projs
+                    print(f"  Removed '{target_project}' from shared key '{key_name}'. Remaining: {', '.join(projs)}")
+                found = True
+        else:
+            projs = vault["shared"][key_name].get("projects", [])
+            confirm = input(f"Remove shared key '{key_name}' from all {len(projs)} projects? [y/N] ").strip().lower()
+            if confirm == "y":
+                del vault["shared"][key_name]
+                found = True
+                print(f"  Removed shared key '{key_name}'.")
+
+    if not found:
+        search_proj = target_project or None
+        for proj in list(vault.get("project", {}).keys()):
+            if search_proj and proj != search_proj:
+                continue
+            if key_name in vault["project"].get(proj, {}):
+                del vault["project"][proj][key_name]
+                if not vault["project"][proj]:
+                    del vault["project"][proj]
+                print(f"  Removed '{key_name}' from {proj}.")
+                found = True
+                break
+
+    if found:
+        save_vault(vault)
+        log_history(key_name, "removed", [target_project or "all"])
+    else:
+        print(f"{RED}Key '{key_name}' not found.{RESET}")
+
+
+def cmd_history(args):
+    """Show rotation/change history."""
+    log_file = HISTORY_DIR / "audit.jsonl"
+    if not log_file.exists():
+        print("No history yet.")
+        return
+
+    key_filter = getattr(args, "key", None)
+    if key_filter:
+        key_filter = key_filter.upper()
+
+    print(f"\n{BOLD}Key History{RESET}")
+    print("-" * 80)
+
+    with open(log_file) as f:
+        entries = [json.loads(line) for line in f if line.strip()]
+
+    if key_filter:
+        entries = [e for e in entries if e.get("key", "").upper() == key_filter]
+
+    for entry in entries[-30:]:  # Last 30 entries
+        ts = entry.get("timestamp", "")[:19]
+        key = entry.get("key", "")
+        action = entry.get("action", "")
+        projs = ", ".join(entry.get("projects", []))
+
+        color = GREEN if action == "added" else (YELLOW if action == "rotated" else RED)
+        print(f"  {DIM}{ts}{RESET}  {color}{action:<10}{RESET}  {BOLD}{key:<30}{RESET}  {projs}")
+
+    print()
+
+
+def cmd_fix_gitignore(args):
+    """Add .gitignore with .env protection to projects missing it."""
+    config = load_config()
+    if not config.get("projects"):
+        config["projects"] = discover_projects()
+        save_config(config)
+
+    fixed = 0
+    GITIGNORE_CONTENT = """# Environment files
+.env
+.env.local
+.env.*.local
+.env.development
+.env.staging
+.env.production
+.env.prod
+
+# Secret files
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.json
+secrets.yaml
+credentials.json
+service-account.json
+client_secret.json
+"""
+
+    for name, info in sorted(config.get("projects", {}).items()):
+        gitignore = Path(info["path"]) / ".gitignore"
+        if not gitignore.exists():
+            with open(gitignore, "w") as f:
+                f.write(GITIGNORE_CONTENT)
+            print(f"  {GREEN}Created{RESET} {name}/.gitignore")
+            fixed += 1
+        else:
+            content = gitignore.read_text()
+            if ".env" not in content:
+                with open(gitignore, "a") as f:
+                    f.write("\n" + GITIGNORE_CONTENT)
+                print(f"  {GREEN}Updated{RESET} {name}/.gitignore (added .env rules)")
+                fixed += 1
+
+    if fixed == 0:
+        print(f"  {GREEN}All projects already have .env in .gitignore.{RESET}")
+    else:
+        print(f"\n  {GREEN}Fixed {fixed} project(s).{RESET}")
+
+
+def cmd_require(args):
+    """Declare keys a project needs via keys.json manifest."""
+    vault = load_vault()
+    config = load_config()
+    project_name = args.project
+    key_names = [k.upper() for k in args.keys]
+
+    if project_name not in config.get("projects", {}):
+        print(f"{RED}Unknown project '{project_name}'. Run 'keymaster projects' to see available.{RESET}")
+        return
+
+    project_path = config["projects"][project_name]["path"]
+    manifest_path = Path(project_path) / "keys.json"
+
+    # Load existing manifest or start fresh
+    manifest = {}
+    if manifest_path.exists():
+        with open(manifest_path) as f:
+            manifest = json.load(f)
+
+    if "keys" not in manifest:
+        manifest["keys"] = {}
+
+    shared = vault.get("shared", {})
+    project_keys = vault.get("project", {})
+
+    added = []
+    needs_value = []
+
+    for key_name in key_names:
+        entry = {"required": True}
+
+        # Check if it exists in vault
+        if key_name in shared:
+            entry["source"] = key_name
+            # Auto-assign project to shared key if not already
+            if project_name not in shared[key_name].get("projects", []):
+                shared[key_name]["projects"].append(project_name)
+                shared[key_name]["projects"].sort()
+                print(f"  {GREEN}Assigned{RESET} shared key '{key_name}' to {project_name}")
+        elif key_name in project_keys.get(project_name, {}):
+            entry["source"] = key_name
+        else:
+            # Key not in vault — check if it's an alias for a shared key
+            found_source = None
+            for vk, vinfo in shared.items():
+                aliases = vinfo.get("aliases", {})
+                if key_name in aliases.values():
+                    found_source = vk
+                    break
+
+            if found_source:
+                entry["source"] = found_source
+                if project_name not in shared[found_source]["projects"]:
+                    shared[found_source]["projects"].append(project_name)
+                    shared[found_source]["projects"].sort()
+                print(f"  {GREEN}Mapped{RESET} '{key_name}' -> vault key '{found_source}'")
+            else:
+                needs_value.append(key_name)
+                entry["source"] = None
+
+        manifest["keys"][key_name] = entry
+        added.append(key_name)
+
+    # Save manifest
+    with open(manifest_path, "w") as f:
+        json.dump(manifest, f, indent=2)
+    print(f"\n  {GREEN}Updated{RESET} {project_name}/keys.json ({len(added)} keys)")
+
+    # Save vault (shared key project assignments may have changed)
+    save_vault(vault)
+
+    if needs_value:
+        print(f"\n  {YELLOW}Keys not yet in vault (need to be added):{RESET}")
+        for k in needs_value:
+            print(f"    {YELLOW}{k}{RESET} — run 'keymaster add {k}' to add it")
+
+    # Sync
+    _do_sync(vault, config, only_projects=[project_name])
+    print()
+
+
+def cmd_check(args):
+    """Check if a project has all its required keys."""
+    vault = load_vault()
+    config = load_config()
+
+    check_projects = [args.project] if args.project else list(config.get("projects", {}).keys())
+    shared = vault.get("shared", {})
+    project_keys = vault.get("project", {})
+
+    print(f"\n{BOLD}Key Requirements Check{RESET}")
+    print("=" * 50)
+
+    for project_name in sorted(check_projects):
+        if project_name not in config.get("projects", {}):
+            print(f"\n  {RED}Unknown project: {project_name}{RESET}")
+            continue
+
+        project_path = config["projects"][project_name]["path"]
+        manifest = _load_manifest(project_path)
+
+        if not manifest.get("keys"):
+            continue
+
+        missing = []
+        satisfied = []
+        empty = []
+
+        for req_key, req_info in manifest["keys"].items():
+            source = req_info.get("source")
+            required = req_info.get("required", True)
+
+            if not source:
+                missing.append(req_key)
+                continue
+
+            # Check if source key exists and has a value
+            val = None
+            if source in shared and project_name in shared[source].get("projects", []):
+                val = shared[source].get("value", "")
+            elif source in project_keys.get(project_name, {}):
+                val = project_keys[project_name][source].get("value", "")
+
+            if val is None:
+                missing.append(req_key)
+            elif val == "":
+                empty.append(req_key)
+            else:
+                satisfied.append(req_key)
+
+        # Report
+        total = len(manifest["keys"])
+        ok = len(satisfied)
+        status = f"{GREEN}OK{RESET}" if ok == total else f"{RED}{total - ok} missing{RESET}"
+
+        print(f"\n  {BOLD}{project_name}{RESET} — {ok}/{total} keys satisfied [{status}]")
+
+        if missing:
+            for k in missing:
+                print(f"    {RED}MISSING: {k}{RESET} — run 'keymaster add {k}' or 'keymaster require {project_name} {k}'")
+        if empty:
+            for k in empty:
+                print(f"    {YELLOW}EMPTY:   {k}{RESET} — key exists but has no value")
+
+    print()
+
+
+def cmd_alias(args):
+    """Set an alias so a shared vault key writes with a different name in a project's .env."""
+    vault = load_vault()
+    config = load_config()
+    vault_key = args.vault_key.upper()
+    alias_name = args.alias.upper()
+    project_name = args.project
+
+    if vault_key not in vault.get("shared", {}):
+        print(f"{RED}'{vault_key}' is not a shared key in the vault.{RESET}")
+        return
+
+    if project_name not in config.get("projects", {}):
+        print(f"{RED}Unknown project '{project_name}'.{RESET}")
+        return
+
+    if "aliases" not in vault["shared"][vault_key]:
+        vault["shared"][vault_key]["aliases"] = {}
+
+    vault["shared"][vault_key]["aliases"][project_name] = alias_name
+    save_vault(vault)
+
+    print(f"  {GREEN}Alias set:{RESET} {vault_key} -> {alias_name} in {project_name}")
+
+    # Sync that project
+    _do_sync(vault, config, only_projects=[project_name])
+    print()
+
+
+# ── CLI ──────────────────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="keymaster",
+        description="Centralized API key manager for local development.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    sub = parser.add_subparsers(dest="command")
+
+    # init
+    sub.add_parser("init", help="Import existing .env files into vault")
+
+    # status
+    sub.add_parser("status", help="Dashboard overview")
+
+    # list
+    p_list = sub.add_parser("list", help="List keys")
+    p_list.add_argument("--project", "-p", help="Filter by project")
+    p_list.add_argument("--shared", "-s", action="store_true", help="Show shared keys only")
+    p_list.add_argument("--category", "-c", help="Filter by category")
+
+    # add
+    p_add = sub.add_parser("add", help="Add or update a key")
+    p_add.add_argument("key", help="Key name (e.g. ANTHROPIC_API_KEY)")
+
+    # get
+    p_get = sub.add_parser("get", help="Get a key value")
+    p_get.add_argument("key", help="Key name")
+    p_get.add_argument("--unmask", "-u", action="store_true", help="Show full value")
+
+    # rotate
+    p_rotate = sub.add_parser("rotate", help="Rotate a key")
+    p_rotate.add_argument("key", help="Key name to rotate")
+
+    # sync
+    p_sync = sub.add_parser("sync", help="Regenerate .env files from vault")
+    p_sync.add_argument("project", nargs="?", help="Sync specific project only")
+
+    # audit
+    sub.add_parser("audit", help="Security audit")
+
+    # projects
+    sub.add_parser("projects", help="List registered projects")
+
+    # remove
+    p_rm = sub.add_parser("remove", help="Remove a key")
+    p_rm.add_argument("key", help="Key name")
+    p_rm.add_argument("--project", "-p", help="Remove from specific project only")
+
+    # history
+    p_hist = sub.add_parser("history", help="Show change history")
+    p_hist.add_argument("key", nargs="?", help="Filter by key name")
+
+    # fix-gitignore
+    sub.add_parser("fix-gitignore", help="Add .gitignore protection to all projects")
+
+    # require
+    p_req = sub.add_parser("require", help="Declare keys a project needs (creates keys.json)")
+    p_req.add_argument("project", help="Project name")
+    p_req.add_argument("keys", nargs="+", help="Key names the project needs")
+
+    # check
+    p_check = sub.add_parser("check", help="Check if a project has all required keys")
+    p_check.add_argument("project", nargs="?", help="Project to check (all if omitted)")
+
+    # alias
+    p_alias = sub.add_parser("alias", help="Set an alias for a shared key in a project")
+    p_alias.add_argument("vault_key", help="Vault key name (e.g. BFL_API_KEY)")
+    p_alias.add_argument("alias", help="Alias name for .env (e.g. FLUX_API_KEY)")
+    p_alias.add_argument("project", help="Project name")
+
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        return
+
+    commands = {
+        "init": cmd_init,
+        "status": cmd_status,
+        "list": cmd_list,
+        "add": cmd_add,
+        "get": cmd_get,
+        "rotate": cmd_rotate,
+        "sync": cmd_sync,
+        "audit": cmd_audit,
+        "projects": cmd_projects,
+        "remove": cmd_remove,
+        "history": cmd_history,
+        "fix-gitignore": cmd_fix_gitignore,
+        "require": cmd_require,
+        "check": cmd_check,
+        "alias": cmd_alias,
+    }
+
+    commands[args.command](args)
+
+
+if __name__ == "__main__":
+    main()

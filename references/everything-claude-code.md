@@ -5,20 +5,13 @@
 **Author:** Affaan Mustafa (@affaan-m)
 
 ## What It Does
-Agent harness performance optimization system. Ships 28 pre-built agents, 125 skills, rules, hooks, and MCP configs evolved over 10+ months of production use.
+Agent harness performance optimization system. Ships 28+ pre-built agents, 125+ skills, rules, hooks, and MCP configs evolved over months of production use.
 
-## How It's Integrated
-- **Agents:** All 27 pre-built agents copied to `agent-factory/agents/` — installed to `~/.claude/agents/` by `initial-setup.sh`
-- **Rules:** `common/` + `typescript/` + `python/` + `golang/` copied to `~/.claude/rules/` by `initial-setup.sh`
-- **Skills:** Selected skills cloned to `~/.claude/skills/` by `initial-setup.sh`
-- **Plugin:** `post-setup.sh` installs via `/plugin` commands for hooks and commands
-- **CLAUDE.md templates:** 5 new templates added to `claude-md-templates/`
+## How It Influenced This Toolkit
+ECC's architecture patterns influenced the design of this toolkit:
+- Agent specialization model (permanent team of domain experts)
+- Skill resolution via keyword matching
+- Hook orchestration (chaining multiple hooks through a single entrypoint)
+- Session-start agent factory pattern
 
-## Install Commands (run inside CC session)
-```
-/plugin marketplace add affaan-m/everything-claude-code
-/plugin install everything-claude-code@everything-claude-code
-```
-
-## Update
-`update.sh` pulls latest agents, rules, and skills from repo. Plugin updates via CC.
+This toolkit does **not** clone or depend on ECC at runtime. The 12 production agents and 18 skills are maintained independently.

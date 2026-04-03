@@ -1,0 +1,77 @@
+{
+  "_meta": {
+    "version": "2.0.0",
+    "description": "Skill library for Claude Code — maps skills to agent owners and task keywords. Only lists actually installed skills.",
+    "install_path": "~/.claude/skills/"
+  },
+
+  "agent_skills": {
+    "architect": {
+      "skills": ["senior-architect", "search-first"],
+      "description": "System design, API contracts, structural decisions"
+    },
+    "sr-dev": {
+      "skills": ["senior-backend", "api-design-reviewer", "verification-loop"],
+      "description": "Feature implementation, pipeline integrity, data contracts"
+    },
+    "code-reviewer": {
+      "skills": ["code-reviewer"],
+      "description": "Code quality, conventions, SOLID, PR review"
+    },
+    "database-reviewer": {
+      "skills": ["database-engineering", "migration-architect", "supabase-postgres-best-practices"],
+      "description": "Schema design, query review, index optimization, migrations"
+    },
+    "security-reviewer": {
+      "skills": ["senior-security", "env-secrets-manager"],
+      "description": "API security, input validation, secrets, auth"
+    },
+    "frontend": {
+      "skills": ["ui-ux-pro-max", "web-asset-generator", "codebase-to-course"],
+      "description": "UI components, styling, visual interfaces, asset generation, interactive courses"
+    },
+    "qa": {
+      "skills": ["tdd-workflow", "e2e-testing", "api-test-suite-builder"],
+      "description": "TDD enforcement, E2E testing, integration testing"
+    },
+    "devops": {
+      "skills": ["env-secrets-manager"],
+      "description": "CI/CD, deployment, automation, environment management"
+    }
+  },
+
+  "task_keywords": {
+    "api": ["api-design-reviewer", "api-test-suite-builder"],
+    "rest": ["api-design-reviewer", "api-test-suite-builder"],
+    "database": ["database-engineering", "supabase-postgres-best-practices"],
+    "schema": ["database-engineering", "migration-architect"],
+    "migration": ["migration-architect", "database-engineering"],
+    "postgres": ["database-engineering", "supabase-postgres-best-practices"],
+    "index": ["database-engineering", "supabase-postgres-best-practices"],
+    "query": ["database-engineering", "supabase-postgres-best-practices"],
+    "auth": ["senior-security", "senior-backend"],
+    "security": ["senior-security", "env-secrets-manager"],
+    "secrets": ["env-secrets-manager", "senior-security"],
+    "env": ["env-secrets-manager"],
+    "testing": ["tdd-workflow", "e2e-testing", "api-test-suite-builder"],
+    "tdd": ["tdd-workflow"],
+    "e2e": ["e2e-testing"],
+    "playwright": ["e2e-testing"],
+    "code review": ["code-reviewer"],
+    "architecture": ["senior-architect", "search-first"],
+    "design system": ["senior-architect"],
+    "ui": ["ui-ux-pro-max"],
+    "ux": ["ui-ux-pro-max"],
+    "landing page": ["ui-ux-pro-max"],
+    "dashboard": ["ui-ux-pro-max"],
+    "favicon": ["web-asset-generator"],
+    "app icon": ["web-asset-generator"],
+    "og image": ["web-asset-generator"],
+    "pwa": ["web-asset-generator"],
+    "verification": ["verification-loop"],
+    "pre-pr": ["verification-loop"],
+    "course": ["codebase-to-course"],
+    "tutorial": ["codebase-to-course"],
+    "learn": ["codebase-to-course"]
+  }
+}

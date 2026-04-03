@@ -12,7 +12,6 @@ TOOLKIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_HOME="${HOME}/.claude"
 SKILLS_DIR="${CLAUDE_HOME}/skills"
 AGENTS_DIR="${CLAUDE_HOME}/agents"
-RULES_DIR="${CLAUDE_HOME}/rules"
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
@@ -21,17 +20,42 @@ BOLD='\033[1m'
 RESET='\033[0m'
 
 log()     { echo -e "${CYAN}[setup]${RESET} $1"; }
-success() { echo -e "${GREEN}✓${RESET}  $1"; }
-warn()    { echo -e "${YELLOW}⚠${RESET}   $1"; }
+success() { echo -e "${GREEN}[ok]${RESET}    $1"; }
+warn()    { echo -e "${YELLOW}[warn]${RESET}  $1"; }
 header()  { echo -e "\n${BOLD}${CYAN}── $1 ──${RESET}"; }
 
 echo ""
-echo -e "${BOLD}╔══════════════════════════════════════════╗${RESET}"
-echo -e "${BOLD}║      ai-dev-toolkit  Initial Setup       ║${RESET}"
-echo -e "${BOLD}╚══════════════════════════════════════════╝${RESET}"
+echo -e "${BOLD}======================================${RESET}"
+echo -e "${BOLD}  ai-dev-toolkit  Initial Setup${RESET}"
+echo -e "${BOLD}======================================${RESET}"
 echo -e "  Toolkit: ${TOOLKIT_DIR}"
-echo -e "  Installing to: ${CLAUDE_HOME}"
+echo -e "  Target:  ${CLAUDE_HOME}"
 echo ""
+
+# ── System Dependencies ──────────────────────────────────────
+header "System Dependencies"
+
+install_pkg() {
+  local cmd="$1" pkg="${2:-$1}"
+  if ! command -v "$cmd" &>/dev/null; then
+    log "Installing ${pkg}..."
+    if command -v apt-get &>/dev/null; then
+      sudo apt-get install -y -qq "$pkg" 2>/dev/null && success "${pkg} installed" || warn "Failed to install ${pkg} — install manually"
+    elif command -v brew &>/dev/null; then
+      brew install --quiet "$pkg" 2>/dev/null && success "${pkg} installed" || warn "Failed to install ${pkg} — install manually"
+    else
+      warn "${cmd} not found — install manually"
+    fi
+  else
+    success "${cmd} found"
+  fi
+}
+
+install_pkg git
+install_pkg jq
+install_pkg node nodejs
+install_pkg python3 python3
+install_pkg pip3 python3-pip
 
 # ── Directory Structure ───────────────────────────────────────
 header "Directory Structure"
@@ -39,31 +63,30 @@ mkdir -p "${CLAUDE_HOME}/skills"
 mkdir -p "${CLAUDE_HOME}/scripts"
 mkdir -p "${CLAUDE_HOME}/hooks"
 mkdir -p "${CLAUDE_HOME}/agents"
-mkdir -p "${CLAUDE_HOME}/commands"
-mkdir -p "${CLAUDE_HOME}/rules"
-success "~/.claude directory structure ready"
+mkdir -p "${HOME}/bin"
+mkdir -p "${HOME}/.keys"
+mkdir -p "${HOME}/projects"
+success "Directory structure ready"
 
-# ── Agent Factory ─────────────────────────────────────────────
-header "Agent Factory"
+# ── Global Config ─────────────────────────────────────────────
+header "Global Config"
 
-cp "${TOOLKIT_DIR}/agent-factory/skills-library.json" \
-   "${CLAUDE_HOME}/skills-library.json"
+if [[ ! -f "${CLAUDE_HOME}/CLAUDE.md" ]]; then
+  cp "${TOOLKIT_DIR}/global/CLAUDE.md" "${CLAUDE_HOME}/CLAUDE.md"
+  success "CLAUDE.md installed"
+else
+  log "CLAUDE.md already exists — skipping (edit manually or run update.sh --force)"
+fi
+
+if [[ ! -f "${CLAUDE_HOME}/settings.json" ]]; then
+  cp "${TOOLKIT_DIR}/global/settings.json" "${CLAUDE_HOME}/settings.json"
+  success "settings.json installed"
+else
+  log "settings.json already exists — skipping"
+fi
+
+cp "${TOOLKIT_DIR}/global/skills-library.json" "${CLAUDE_HOME}/skills-library.json"
 success "skills-library.json installed"
-
-cp "${TOOLKIT_DIR}/agent-factory/scripts/agent-factory.sh" \
-   "${CLAUDE_HOME}/scripts/agent-factory.sh"
-chmod +x "${CLAUDE_HOME}/scripts/agent-factory.sh"
-success "agent-factory.sh installed"
-
-cp "${TOOLKIT_DIR}/agent-factory/hooks/session-start.sh" \
-   "${CLAUDE_HOME}/hooks/session-start.sh"
-chmod +x "${CLAUDE_HOME}/hooks/session-start.sh"
-success "session-start.sh installed"
-
-cp "${TOOLKIT_DIR}/hooks/orchestrator.sh" \
-   "${CLAUDE_HOME}/hooks/orchestrator.sh"
-chmod +x "${CLAUDE_HOME}/hooks/orchestrator.sh"
-success "hooks/orchestrator.sh installed"
 
 if [[ ! -f "${CLAUDE_HOME}/agents-registry.json" ]]; then
   echo '{"agents": []}' > "${CLAUDE_HOME}/agents-registry.json"
@@ -72,174 +95,143 @@ else
   log "agents-registry.json already exists — skipping"
 fi
 
-# ── Pre-built Agents (from ECC) ───────────────────────────────
-header "Pre-built Agents"
+# ── Production Agents (12) ────────────────────────────────────
+header "Production Agents"
 
-for agent_file in "${TOOLKIT_DIR}/agent-factory/agents/"*.md; do
+for agent_file in "${TOOLKIT_DIR}/agents/"*.md; do
   [[ -f "$agent_file" ]] || continue
-  dest="${AGENTS_DIR}/$(basename "$agent_file")"
-  if [[ ! -f "$dest" ]]; then
-    cp "$agent_file" "$dest"
-    success "Agent installed: $(basename "$agent_file" .md)"
+  name="$(basename "$agent_file")"
+  if [[ ! -f "${AGENTS_DIR}/${name}" ]]; then
+    cp "$agent_file" "${AGENTS_DIR}/${name}"
+    success "Agent installed: ${name%.md}"
   else
-    log "Agent already exists: $(basename "$agent_file" .md) — skipping"
+    log "Agent already exists: ${name%.md} — skipping (use update.sh --force to overwrite)"
   fi
 done
 
-# ── ECC Rules ─────────────────────────────────────────────────
-header "ECC Rules (common + typescript + python + golang)"
+# ── Skills (18) ───────────────────────────────────────────────
+header "Skills"
 
-TMP_ECC=$(mktemp -d)
-if git clone --depth=1 --quiet \
-   https://github.com/affaan-m/everything-claude-code.git "${TMP_ECC}/ecc" 2>/dev/null; then
-
-  for lang in common typescript python golang; do
-    src="${TMP_ECC}/ecc/rules/${lang}"
-    if [[ -d "$src" ]]; then
-      mkdir -p "${RULES_DIR}/${lang}"
-      cp -rn "${src}/." "${RULES_DIR}/${lang}/" 2>/dev/null || true
-      success "ECC rules installed: ${lang}"
-    fi
-  done
-else
-  warn "Could not clone ECC — rules not installed. Run update.sh to retry."
-fi
-rm -rf "$TMP_ECC"
-
-# ── ECC Skills (core set) ─────────────────────────────────────
-header "ECC Skills"
-
-TMP_ECC2=$(mktemp -d)
-if git clone --depth=1 --quiet \
-   https://github.com/affaan-m/everything-claude-code.git "${TMP_ECC2}/ecc" 2>/dev/null; then
-
-  ECC_CORE_SKILLS=(
-    "continuous-learning"
-    "continuous-learning-v2"
-    "iterative-retrieval"
-    "strategic-compact"
-    "tdd-workflow"
-    "security-review"
-    "eval-harness"
-    "verification-loop"
-    "search-first"
-    "backend-patterns"
-    "frontend-patterns"
-    "api-design"
-    "deployment-patterns"
-    "docker-patterns"
-    "e2e-testing"
-    "database-migrations"
-  )
-
-  for skill in "${ECC_CORE_SKILLS[@]}"; do
-    src="${TMP_ECC2}/ecc/skills/${skill}"
-    dest="${SKILLS_DIR}/${skill}"
-    if [[ -d "$src" ]] && [[ ! -d "$dest" ]]; then
-      cp -r "$src" "$dest"
-      success "ECC skill installed: ${skill}"
-    elif [[ -d "$dest" ]]; then
-      log "ECC skill already exists: ${skill} — skipping"
-    fi
-  done
-else
-  warn "Could not clone ECC — skills not installed. Run update.sh to retry."
-fi
-rm -rf "$TMP_ECC2"
-
-# ── ui-ux-pro-max ─────────────────────────────────────────────
-header "ui-ux-pro-max"
-
-if command -v npm &>/dev/null; then
-  if ! command -v uipro &>/dev/null; then
-    npm install -g uipro-cli --silent
-    success "uipro-cli installed"
+for skill_dir in "${TOOLKIT_DIR}/skills/"*/; do
+  [[ -d "$skill_dir" ]] || continue
+  name="$(basename "$skill_dir")"
+  dest="${SKILLS_DIR}/${name}"
+  if [[ ! -d "$dest" ]]; then
+    cp -r "$skill_dir" "$dest"
+    success "Skill installed: ${name}"
   else
-    log "uipro-cli already installed — skipping"
+    log "Skill already exists: ${name} — skipping"
   fi
-  uipro init --ai claude --global 2>/dev/null || true
-  success "ui-ux-pro-max skill installed globally"
+done
+
+# ── Hooks & Scripts ───────────────────────────────────────────
+header "Hooks & Scripts"
+
+cp "${TOOLKIT_DIR}/agent-factory/hooks/session-start.sh" \
+   "${CLAUDE_HOME}/hooks/session-start.sh"
+chmod +x "${CLAUDE_HOME}/hooks/session-start.sh"
+success "hooks/session-start.sh installed"
+
+cp "${TOOLKIT_DIR}/hooks/orchestrator.sh" \
+   "${CLAUDE_HOME}/hooks/orchestrator.sh"
+chmod +x "${CLAUDE_HOME}/hooks/orchestrator.sh"
+success "hooks/orchestrator.sh installed"
+
+cp "${TOOLKIT_DIR}/agent-factory/scripts/agent-factory.sh" \
+   "${CLAUDE_HOME}/scripts/agent-factory.sh"
+chmod +x "${CLAUDE_HOME}/scripts/agent-factory.sh"
+success "scripts/agent-factory.sh installed"
+
+# ── KeyMaster ─────────────────────────────────────────────────
+header "KeyMaster"
+
+cp "${TOOLKIT_DIR}/keymaster/keymaster" "${HOME}/bin/keymaster"
+chmod +x "${HOME}/bin/keymaster"
+success "keymaster installed to ~/bin/"
+
+if [[ ! -f "${HOME}/.keys/vault.json" ]]; then
+  echo '{}' > "${HOME}/.keys/vault.json"
+  chmod 600 "${HOME}/.keys/vault.json"
+  success "~/.keys/vault.json initialized (empty)"
 else
-  warn "npm not found — ui-ux-pro-max not installed"
+  log "~/.keys/vault.json already exists — skipping"
 fi
 
-# ── web-asset-generator ───────────────────────────────────────
-header "web-asset-generator"
-
-WAG_DIR="${SKILLS_DIR}/web-asset-generator"
-if [[ ! -d "$WAG_DIR" ]]; then
-  git clone --depth=1 --quiet \
-    https://github.com/alonw0/web-asset-generator.git "${TMP:-/tmp}/wag" 2>/dev/null
-  cp -r "${TMP:-/tmp}/wag/skills/web-asset-generator" "$WAG_DIR"
-  rm -rf "${TMP:-/tmp}/wag"
-  success "web-asset-generator installed"
+if [[ ! -f "${HOME}/.keys/config.json" ]]; then
+  cat > "${HOME}/.keys/config.json" << 'KEYCONF'
+{
+  "vault_path": "~/.keys/vault.json",
+  "projects_dir": "~/projects",
+  "auto_sync": true,
+  "mask_by_default": true
+}
+KEYCONF
+  chmod 600 "${HOME}/.keys/config.json"
+  success "~/.keys/config.json initialized"
 else
-  log "web-asset-generator already installed — skipping"
+  log "~/.keys/config.json already exists — skipping"
 fi
 
-# ── codebase-to-course ────────────────────────────────────────
-header "codebase-to-course"
+# ── Bash Aliases & PATH ──────────────────────────────────────
+header "Shell Config"
 
-C2C_DIR="${SKILLS_DIR}/codebase-to-course"
-if [[ ! -d "$C2C_DIR" ]]; then
-  git clone --depth=1 --quiet \
-    https://github.com/zarazhangrui/codebase-to-course.git "${TMP:-/tmp}/c2c" 2>/dev/null
-  mkdir -p "$C2C_DIR"
-  cp "${TMP:-/tmp}/c2c/SKILL.md" "$C2C_DIR/"
-  cp -r "${TMP:-/tmp}/c2c/references" "$C2C_DIR/"
-  rm -rf "${TMP:-/tmp}/c2c"
-  success "codebase-to-course installed"
+MARKER="# ai-dev-toolkit"
+if ! grep -qF "$MARKER" "${HOME}/.bashrc" 2>/dev/null; then
+  {
+    echo ""
+    echo "$MARKER"
+    cat "${TOOLKIT_DIR}/dotfiles/bashrc-additions.sh"
+    echo "# /ai-dev-toolkit"
+  } >> "${HOME}/.bashrc"
+  success "Bash aliases and PATH added to ~/.bashrc"
 else
-  log "codebase-to-course already installed — skipping"
+  log "Bash config already present — skipping"
 fi
 
-# ── get-shit-done ─────────────────────────────────────────────
-header "get-shit-done (GSD)"
-
-if command -v npx &>/dev/null; then
-  npx get-shit-done-cc@latest --claude --global --yes 2>/dev/null || \
-  npx get-shit-done-cc@latest --claude --global 2>/dev/null || true
-  success "GSD installed globally"
-else
-  warn "npx not found — GSD not installed"
-fi
-
-# ── Python Dependencies ───────────────────────────────────────
+# ── Python Dependencies ──────────────────────────────────────
 header "Python Dependencies"
 
 if command -v pip3 &>/dev/null; then
-  pip3 install --quiet --break-system-packages Pillow pilmoji 'emoji<2.0.0' 2>/dev/null || \
-  pip3 install --quiet Pillow pilmoji 'emoji<2.0.0' 2>/dev/null || true
-  success "Python dependencies installed (Pillow, pilmoji)"
+  pip3 install --quiet --break-system-packages \
+    Pillow anthropic 2>/dev/null || \
+  pip3 install --quiet \
+    Pillow anthropic 2>/dev/null || true
+  success "Python deps installed (Pillow, anthropic)"
 else
-  warn "pip3 not found — install Python deps manually: pip install Pillow pilmoji 'emoji<2.0.0'"
+  warn "pip3 not found — install manually: pip3 install Pillow anthropic"
 fi
 
-# ── Dependency Check ──────────────────────────────────────────
-header "Dependency Check"
+# ── Final Verification ────────────────────────────────────────
+header "Verification"
 
-command -v jq    &>/dev/null && success "jq found" || warn "jq not found — install: sudo apt install jq"
-command -v git   &>/dev/null && success "git found" || warn "git not found — required"
-command -v node  &>/dev/null && success "node found ($(node --version))" || warn "node not found — required for GSD and ui-ux-pro-max"
-command -v python3 &>/dev/null && success "python3 found" || warn "python3 not found — required for ui-ux-pro-max and web-asset-generator"
-command -v bun   &>/dev/null && success "bun found" || warn "bun not found — required for claude-mem (install in post-setup.sh)"
+command -v claude  &>/dev/null && success "Claude Code ready" || warn "Claude Code not found — install before using the toolkit"
+command -v git     &>/dev/null && success "git ready"
+command -v node    &>/dev/null && success "node ready ($(node --version))"
+command -v python3 &>/dev/null && success "python3 ready"
+command -v keymaster &>/dev/null && success "keymaster ready" || warn "keymaster not in PATH — run: source ~/.bashrc"
 
-# ── Done ─────────────────────────────────────────────────────
+# ── Done ──────────────────────────────────────────────────────
 echo ""
-echo -e "${GREEN}${BOLD}╔══════════════════════════════════════════╗${RESET}"
-echo -e "${GREEN}${BOLD}║        Initial Setup Complete! 🚀        ║${RESET}"
-echo -e "${GREEN}${BOLD}╚══════════════════════════════════════════╝${RESET}"
+echo -e "${GREEN}${BOLD}======================================${RESET}"
+echo -e "${GREEN}${BOLD}  Setup Complete${RESET}"
+echo -e "${GREEN}${BOLD}======================================${RESET}"
+echo ""
+echo "  Installed:"
+echo "    12 production agents"
+echo "    18 skills"
+echo "    KeyMaster (~/bin/keymaster)"
+echo "    Global CLAUDE.md + settings.json"
+echo "    Hooks + agent factory"
+echo "    Bash aliases (cc, ccnew)"
+echo "    Vincent (Project Lead) template in project-agents/"
 echo ""
 echo "  Next steps:"
+echo "    1. Source your shell:  source ~/.bashrc"
+echo "    2. Migrate your keys: bash ~/ai-dev-toolkit/keymaster/migrate-vault.sh scp user@old-machine"
+echo "       Or add fresh keys: keymaster add STRIPE_SECRET_KEY (etc.)"
+echo "    3. Start a project:   cd ~/projects/my-app && ccnew"
+echo "    4. Scaffold Vincent:  cp ~/ai-dev-toolkit/project-agents/orchestrator.md .claude/agents/"
 echo ""
-echo "  1. Open Claude Code and run post-setup.sh commands:"
-echo "     bash ~/ai-dev-toolkit/post-setup.sh"
-echo ""
-echo "  2. Start a new project — pick a CLAUDE.md template:"
-echo "     cp ~/ai-dev-toolkit/claude-md-templates/saas-nextjs.md YOUR_PROJECT/CLAUDE.md"
-echo ""
-echo "  3. Open CC in that project — agent factory fires automatically"
-echo ""
-echo "  To update all tools later:"
-echo "     bash ~/ai-dev-toolkit/update.sh"
+echo "  To verify:  bash ${TOOLKIT_DIR}/verify-install.sh"
+echo "  To update:  bash ${TOOLKIT_DIR}/update.sh"
 echo ""

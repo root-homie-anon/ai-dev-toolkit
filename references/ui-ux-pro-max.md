@@ -1,18 +1,18 @@
-# Reference: ui-ux-pro-max-skill
+# Reference: ui-ux-pro-max
 
-**Repo:** https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
+**Source:** https://www.npmjs.com/package/uipro-cli
 **License:** MIT
-**Author:** nextlevelbuilder
+**Author:** viettranx
 
 ## What It Does
-Design intelligence skill for building professional UI/UX. Ships 67 UI styles, 161 industry-specific reasoning rules, 57 font pairings, and a design system generator. Auto-activates on UI/UX requests.
+UI/UX design skill for AI coding assistants. Provides design system generation, component styling patterns, color palettes, typography, and responsive layout guidance.
 
 ## How It's Integrated
-- **Install:** `initial-setup.sh` — `npm install -g uipro-cli && uipro init --ai claude --global`
-- **Scope:** Project-scoped via `skills-library.json`
-- **Roles:** Added as base skill for `frontend`, `fullstack`, `mobile` roles
-- **Keywords:** `ui`, `ux`, `design system`, `landing page`, `dashboard`, `glassmorphism`, `dark mode`
-- **Dependency:** Python 3 (for search.py engine)
+- Bundled in `skills/ui-ux-pro-max/` — installed to `~/.claude/skills/` by `initial-setup.sh`
+- Mapped to `frontend` agent in `skills-library.json`
+- Activated by task keywords: ui, ux, design system, landing page, dashboard, glassmorphism, dark mode
 
-## Update
-`update.sh` runs `uipro update` to pull latest version.
+## Contents
+- `scripts/` — Python scripts for design system generation, search, and core logic
+- `data/` — CSV datasets for typography, colors, icons, styles, UI reasoning, and framework-specific patterns (React, Next.js, Svelte, Vue, Flutter, SwiftUI, etc.)
+- `templates/` — Skill content and quick reference templates

@@ -23,19 +23,11 @@ run_hook() {
   fi
 }
 
-# ── 1. Agent Factory ─────────────────────────────────────────
+# ── 1. Agent Factory (session-start) ─────────────────────────
+# Lists existing agents, syncs env, offers to create new agents
 run_hook "agent-factory" \
   "${CLAUDE_HOME}/hooks/session-start.sh" \
   "$PROJECT_NAME" "$PROJECT_PATH"
 
-# ── 2. ECC hooks (loaded via hooks.json, not shell) ──────────
-# ECC registers its own hooks via plugin system — no shell call needed.
-# Documented here for visibility only.
-
-# ── 3. GSD ───────────────────────────────────────────────────
-# GSD registers its own hooks via npx install — no shell call needed.
-# Documented here for visibility only.
-
-# ── 4. claude-mem ────────────────────────────────────────────
-# claude-mem registers its own hooks via /plugin — no shell call needed.
-# Documented here for visibility only.
+# ── Add new hooks below ──────────────────────────────────────
+# run_hook "my-hook" "${CLAUDE_HOME}/hooks/my-hook.sh" "$PROJECT_NAME" "$PROJECT_PATH"

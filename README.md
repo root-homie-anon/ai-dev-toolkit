@@ -2,23 +2,7 @@
 
 > Personal AI development infrastructure for Claude Code — clone once, use everywhere.
 
-A public toolkit that travels with you across every machine and project. One setup command brings Claude Code to full power instantly — agents, skills, slash commands, templates, standards, and prompts all wired up and ready.
-
----
-
-## What's Inside
-
-| Folder | What It Does |
-|--------|-------------|
-| `agent-factory/` | Auto-creates CC agents with matched skills at session start |
-| `agent-factory/agents/` | 26 pre-built specialist agents (from ECC) |
-| `claude-md-templates/` | CLAUDE.md starter files per project type |
-| `hooks/` | Hook orchestrator — chains all system hooks in order |
-| `commands/` | Custom slash commands for common workflows |
-| `standards/` | Code standards, commit conventions, PR templates |
-| `prompts/` | Reusable prompt library for recurring tasks |
-| `references/` | Source documentation for all integrated tools |
-| `docs/` | Guides and references |
+One setup command brings Claude Code to full power on any machine: 12 production agents, 18 skills, KeyMaster for secrets, global config, hooks, and bash aliases all wired up and ready.
 
 ---
 
@@ -28,90 +12,126 @@ A public toolkit that travels with you across every machine and project. One set
 # 1. Clone the toolkit
 git clone https://github.com/root-homie-anon/ai-dev-toolkit.git ~/ai-dev-toolkit
 
-# 2. Run headless setup (installs everything that doesn't need CC open)
+# 2. Run setup (installs everything — no external dependencies)
 bash ~/ai-dev-toolkit/initial-setup.sh
 
-# 3. Open Claude Code and run post-setup instructions
-bash ~/ai-dev-toolkit/post-setup.sh
+# 3. Source your shell
+source ~/.bashrc
 
-# 4. Start a new project — pick a CLAUDE.md template
-cp ~/ai-dev-toolkit/claude-md-templates/saas-nextjs.md YOUR_PROJECT/CLAUDE.md
+# 4. Add your API keys
+keymaster add ANTHROPIC_API_KEY
+
+# 5. Start working
+cd ~/projects/my-app && ccnew
 ```
 
 ---
 
-## Keeping Up To Date
+## What's Inside
+
+| Folder | What It Does |
+|--------|-------------|
+| `global/` | Global CLAUDE.md, settings.json, skills-library.json |
+| `agents/` | 12 production specialist agents |
+| `skills/` | 15 bundled skills mapped to agents |
+| `agent-factory/` | On-demand project agent creation (hooks + scripts) |
+| `keymaster/` | Centralized API key management |
+| `dotfiles/` | Bash aliases and PATH setup |
+| `claude-md-templates/` | CLAUDE.md starter files per project type |
+| `hooks/` | Hook orchestrator — chains all system hooks |
+| `standards/` | Code standards, commit conventions |
+| `prompts/` | Reusable prompt library |
+| `references/` | Source documentation for integrated tools |
+
+---
+
+## Production Agents
+
+12 specialist agents with rich instructions, protocols, and handoff patterns:
+
+| Agent | Alias | Role |
+|-------|-------|------|
+| `chief-of-ops` | **Marcus** | Session lead — scans repo, routes to permanent team |
+| `architect` | **Tony** | System design, APIs, schemas, structure decisions |
+| `sr-dev` | **Doug** | Feature implementation, pipeline integrity, data contracts |
+| `frontend` | **Ava** | UI, components, styling, React, visual interfaces |
+| `bug-hunter` | **Nate** | Root cause detection, silent failures, error surfacing |
+| `code-reviewer` | **Linda** | Code quality, SOLID, PR review, conventions |
+| `database-reviewer` | **Omar** | Schema design, queries, indexes, migrations, performance |
+| `security-reviewer` | **Elliot** | API security, auth, input validation, secrets |
+| `devops` | **Ray** | CI/CD, scripts, hooks, automation, environment setup |
+| `qa` | **Chris** | E2E testing, TDD, integration tests (non-blocking) |
+| `refactor-cleaner` | **Mark** | Dead code removal, structural cleanup, tech debt |
+| `claude-specialist` | **Jared** | Subscription optimization, model selection, Anthropic updates |
+
+---
+
+## Skills
+
+18 skills mapped to agents via `skills-library.json`:
+
+| Skill | Owner Agent(s) |
+|-------|---------------|
+| `senior-architect` | architect |
+| `search-first` | architect |
+| `senior-backend` | sr-dev |
+| `api-design-reviewer` | architect, sr-dev |
+| `verification-loop` | sr-dev |
+| `code-reviewer` | code-reviewer |
+| `database-engineering` | database-reviewer |
+| `migration-architect` | database-reviewer |
+| `supabase-postgres-best-practices` | database-reviewer |
+| `senior-security` | security-reviewer |
+| `env-secrets-manager` | security-reviewer, devops |
+| `ui-ux-pro-max` | frontend |
+| `web-asset-generator` | frontend |
+| `codebase-to-course` | frontend |
+| `tdd-workflow` | qa |
+| `e2e-testing` | qa |
+| `api-test-suite-builder` | qa |
+| `find-skills` | general |
+
+---
+
+## KeyMaster
+
+Centralized API key management. Single vault at `~/.keys/vault.json`, generates per-project `.env` files.
 
 ```bash
-# Pull latest from all source repos — only installs what's new
-bash ~/ai-dev-toolkit/update.sh
+keymaster status              # Dashboard
+keymaster add API_KEY_NAME    # Add a key (interactive)
+keymaster sync PROJECT        # Generate .env for a project
+keymaster audit               # Security check
+keymaster require PROJECT K1 K2  # Declare project key requirements
 ```
+
+See `keymaster/README.md` for full reference.
 
 ---
 
-## Setup Scripts
+## Project Agent Templates
 
-| Script | When To Run | What It Does |
-|--------|-------------|--------------|
-| `initial-setup.sh` | Fresh machine, or anytime (idempotent) | Installs all headless tools, agents, rules, skills |
-| `post-setup.sh` | After initial-setup, inside CC session | Prints plugin install commands for CC-dependent tools |
-| `update.sh` | Anytime to pull latest | Checks all source repos, installs only what's new |
+Every new project gets Vincent (Project Lead) scaffolded into `.claude/agents/`. The template lives in `project-agents/` and includes the full orchestration protocol — just fill in the delegation map and pipeline sequence.
+
+| Agent | Alias | Job Title |
+|-------|-------|-----------|
+| `orchestrator` | **Vincent** | Project Lead |
+
+Additional domain agents (e.g. `@researcher`, `@backend`, `@designer`) are created per-project via the agent factory based on what the project needs.
 
 ---
 
 ## Agent Factory
 
-At every CC session start, the hook fires automatically.
+Create project-specific agents on demand during any session:
 
-1. Session starts → orchestrator fires → agent factory runs
+1. Session starts — `session-start.sh` fires automatically
 2. Shows existing agents for this project
-3. "Create a new agent? (y/N)"
-4. You provide: name → role → task description
-5. Skills auto-matched from `agent-factory/skills-library.json`
-6. Agent created at `.claude/agents/<name>.md`, invoke with `@name`
+3. Offers interactive agent creation
+4. Skills auto-matched from role + task keywords
+5. Agent created at `.claude/agents/<name>.md`
 
-### Pre-built Agents
-
-26 specialist agents available immediately after setup (from ECC):
-
-| Agent | Role |
-|-------|------|
-| `planner` | Feature planning and task breakdown |
-| `architect` | System design and architecture |
-| `tdd-guide` | Test-driven development enforcement |
-| `code-reviewer` | Code quality and security review |
-| `security-reviewer` | OWASP audits, vulnerability analysis |
-| `build-error-resolver` | Build failures and dependency conflicts |
-| `e2e-runner` | Playwright end-to-end testing |
-| `refactor-cleaner` | Dead code removal, tech debt |
-| `doc-updater` | Documentation sync |
-| `docs-lookup` | API research before implementation |
-| `chief-of-staff` | Communication triage and drafts |
-| `loop-operator` | Autonomous loop execution |
-| `harness-optimizer` | CC config and performance tuning |
-| `go-reviewer` | Go code review |
-| `python-reviewer` | Python code review |
-| `typescript-reviewer` | TypeScript/JavaScript review |
-| `database-reviewer` | Query and schema review |
-| `rust-reviewer` + `rust-build-resolver` | Rust development |
-| `cpp-reviewer` + `cpp-build-resolver` | C++ development |
-| `java-reviewer` + `java-build-resolver` | Java/Spring Boot |
-| `kotlin-reviewer` + `kotlin-build-resolver` | Kotlin/Android |
-| `pytorch-build-resolver` | PyTorch/CUDA training |
-
----
-
-## Hook Architecture
-
-All hooks chain through a single orchestrator — no conflicts, no duplicate firing.
-
-```
-~/.claude/hooks/orchestrator.sh
-  └── 1. Agent Factory    (session-start.sh — interactive)
-  └── 2. ECC              (registered via plugin system)
-  └── 3. GSD              (registered via npx install)
-  └── 4. claude-mem       (registered via /plugin)
-```
+Supports 16 roles: backend, frontend, fullstack, mobile, devops, qa, security, architect, database, product, pm, marketing, release, advisor, video-compiler, content-automation.
 
 ---
 
@@ -130,54 +150,33 @@ All hooks chain through a single orchestrator — no conflicts, no duplicate fir
 
 ---
 
-## System-Wide Tools
+## Scripts
 
-These install globally and are available in every CC session regardless of project:
-
-| Tool | What It Does |
-|------|-------------|
-| **claude-mem** | Persistent memory across sessions — auto-captures context, injects back on start |
-| **get-shit-done (GSD)** | Spec-driven development — `/gsd:new-project`, `/gsd:plan-phase`, `/gsd:execute-phase` |
-| **codebase-to-course** | "Turn this into a course" — generates interactive HTML course from any codebase |
-| **ECC** | 26 agents, rules, hooks, and skills for agent harness performance |
+| Script | When To Run | What It Does |
+|--------|-------------|--------------|
+| `initial-setup.sh` | Fresh machine (idempotent) | Installs everything from local repo |
+| `update.sh` | Anytime | Pulls latest toolkit, refreshes installed files |
+| `verify-install.sh` | After setup | Confirms everything installed correctly |
 
 ---
 
-## Project-Scoped Skills
+## Shell Aliases
 
-These install globally but activate per-project via the agent factory role/keyword matching:
+After setup, these are available:
 
-| Skill | Roles | Keywords |
-|-------|-------|---------|
-| **ui-ux-pro-max** | frontend, fullstack, mobile | ui, ux, design system, landing page, dashboard |
-| **web-asset-generator** | frontend, fullstack, mobile | favicon, app icon, og image, pwa, social image |
-
----
-
-## Slash Commands
-
-| Command | What It Does |
-|---------|-------------|
-| `/create-agent` | Manually trigger agent creation mid-session |
-| `/project-status` | Summarize current sprint, open tasks, recent commits |
-| `/code-review` | Full review of staged changes |
-| `/new-feature` | Scaffold a new feature with tests and docs |
-| `/release-prep` | Generate changelog, bump version, check readiness |
-| `/security-check` | Run security audit on current changes |
-| `/db-migration` | Generate a new migration file from schema changes |
+| Alias | What It Does |
+|-------|-------------|
+| `cc` | Launch Claude Code with session-start hook |
+| `ccnew` | Same as `cc` — launch in current project dir |
 
 ---
 
-## References
+## Keeping Up To Date
 
-Source documentation for all integrated tools lives in `references/`:
-
-- `references/claude-mem.md`
-- `references/everything-claude-code.md`
-- `references/ui-ux-pro-max.md`
-- `references/codebase-to-course.md`
-- `references/web-asset-generator.md`
-- `references/get-shit-done.md`
+```bash
+bash ~/ai-dev-toolkit/update.sh          # Normal update
+bash ~/ai-dev-toolkit/update.sh --force  # Force overwrite CLAUDE.md + agents
+```
 
 ---
 
