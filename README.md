@@ -1,29 +1,116 @@
 # ai-dev-toolkit
 
-> Personal AI development infrastructure for Claude Code — clone once, use everywhere.
+**Strong Tower Media AI Studio** — Internal development infrastructure for AI agent-driven software engineering.
 
-One setup command brings Claude Code to full power on any machine: 12 production agents, 18 skills, KeyMaster for secrets, global config, hooks, and bash aliases all wired up and ready.
+> One setup command deploys the full agent team to any machine. Every project gets the same 12-agent permanent team, 18 skills, centralized secrets, and orchestration framework — purpose-built for building and shipping AI-powered products at speed.
+
+---
+
+## What This Is
+
+This toolkit is the operating system for how Strong Tower Media builds software. Every project — from automated content pipelines to SaaS platforms to trading bots — runs through the same agent architecture:
+
+- **A permanent team of 12 specialists** handles every discipline: architecture, implementation, frontend, security, database, QA, DevOps, code review, debugging, refactoring, budget tracking, and platform optimization
+- **A Project Lead (Vincent)** gets scaffolded per project to orchestrate domain-specific agents and pipelines
+- **Marcus (COO)** boots every session, scans the repo, routes work to the right specialist, and spins up bench agents via the factory when the team hits a skill gap
+- **All agents are stateless** — full context passed explicitly, parallel execution where possible, errors always surface
+
+This isn't a collection of scripts. It's a complete AI development methodology that travels with you.
 
 ---
 
 ## Quick Start (any machine)
 
+Prerequisites: Claude Code installed and authenticated.
+
 ```bash
 # 1. Clone the toolkit
 git clone https://github.com/root-homie-anon/ai-dev-toolkit.git ~/ai-dev-toolkit
 
-# 2. Run setup (installs everything — no external dependencies)
+# 2. Run setup (installs deps + full agent team)
 bash ~/ai-dev-toolkit/initial-setup.sh
 
 # 3. Source your shell
 source ~/.bashrc
 
-# 4. Add your API keys
-keymaster add ANTHROPIC_API_KEY
+# 4. Migrate API keys from existing machine (if applicable)
+bash ~/ai-dev-toolkit/keymaster/migrate-vault.sh scp user@old-machine
+keymaster sync
 
-# 5. Start working
+# 5. Start a project
 cd ~/projects/my-app && ccnew
 ```
+
+---
+
+## The Agent Team
+
+### Permanent Team (Global — available in every project)
+
+12 production agents with rich instructions, protocols, handoff patterns, and delegation boundaries. Each owns a specific domain and knows who to hand off to for adjacent concerns.
+
+| Agent | Alias | Title | Level |
+|-------|-------|-------|-------|
+| `chief-of-ops` | **Marcus** | Chief Operating Officer | System |
+| `architect` | **Tony** | Lead Architect | Project |
+| `sr-dev` | **Doug** | Senior Software Engineer | Project |
+| `frontend` | **Ava** | Senior Frontend Engineer | Project |
+| `bug-hunter` | **Nate** | Root Cause Analyst | Project |
+| `code-reviewer` | **Linda** | Code Quality Lead | Project |
+| `database-reviewer` | **Omar** | Database Engineer | Project |
+| `security-reviewer` | **Elliot** | Application Security Engineer | Project |
+| `devops` | **Ray** | Infrastructure & Automation Engineer | System |
+| `qa` | **Chris** | QA & Test Automation Engineer | Project |
+| `refactor-cleaner` | **Mark** | Tech Debt Specialist | Project |
+| `claude-specialist` | **Jared** | Budget & Platform Specialist | System |
+
+### Project Lead (Per-project — scaffolded from template)
+
+| Agent | Alias | Title |
+|-------|-------|-------|
+| `orchestrator` | **Vincent** | Project Lead |
+
+Vincent drives every project session. His template lives in `project-agents/orchestrator.md` — fill in the delegation map and pipeline sequence per project. Domain agents (e.g. `@researcher`, `@designer`, `@listing-agent`) are created per-project via the agent factory.
+
+### Bench Agents (On-demand — created by Marcus)
+
+When the permanent team hits a skill gap, Marcus identifies it, reports the finding, and — with your approval — invokes the agent factory to create a project-scoped specialist. Bench agents match the quality bar of the permanent 12. Promotion to permanent team is by your request only.
+
+---
+
+## How It Works
+
+### Session Flow
+
+```
+Session starts
+    |
+    v
+Marcus boots — scans repo, loads state, checks git
+    |
+    v
+Routes to one of three states:
+  A) Active work → picks up where it left off, routes to right agent
+  B) Opportunities → recommends next action from git/TODOs/tech debt
+  C) Clean slate → stands by for your command
+    |
+    v
+Work flows through the permanent team:
+  Tony designs → Doug implements → Linda reviews → Chris tests
+  Elliot audits security → Omar reviews DB → Ray deploys
+    |
+    v
+Jared tracks spend, flags budget alerts, optimizes tooling
+```
+
+### Project Initialization
+
+1. Plan the project in claude.ai using `prompts/new-project-claude-ai.md`
+2. Drop the generated CLAUDE.md in the project root (or start from `claude-md-templates/project-skeleton.md`)
+3. Scaffold Vincent: `cp ~/ai-dev-toolkit/project-agents/orchestrator.md .claude/agents/`
+4. Fill in Vincent's delegation map and pipeline sequence
+5. Create domain agents via the agent factory as needed
+6. `ccnew` — Marcus boots, Vincent leads, the team executes
 
 ---
 
@@ -31,152 +118,104 @@ cd ~/projects/my-app && ccnew
 
 | Folder | What It Does |
 |--------|-------------|
+| `agents/` | 12 global production agents (the permanent team) |
+| `project-agents/` | Vincent (Project Lead) template |
+| `skills/` | 18 bundled skills mapped to agents |
 | `global/` | Global CLAUDE.md, settings.json, skills-library.json |
-| `agents/` | 12 production specialist agents |
-| `skills/` | 15 bundled skills mapped to agents |
-| `agent-factory/` | On-demand project agent creation (hooks + scripts) |
-| `keymaster/` | Centralized API key management |
-| `dotfiles/` | Bash aliases and PATH setup |
-| `claude-md-templates/` | CLAUDE.md starter files per project type |
+| `agent-factory/` | On-demand bench agent creation (hooks + scripts) |
+| `keymaster/` | Centralized API key management + vault migration |
+| `claude-md-templates/` | 8 stack templates + project skeleton |
+| `dotfiles/` | Bash aliases (cc, ccnew) and PATH setup |
 | `hooks/` | Hook orchestrator — chains all system hooks |
+| `prompts/` | Reusable prompts (including claude.ai project planning) |
+| `references/` | Slash commands reference, tool docs |
 | `standards/` | Code standards, commit conventions |
-| `prompts/` | Reusable prompt library |
-| `references/` | Source documentation for integrated tools |
-
----
-
-## Production Agents
-
-12 specialist agents with rich instructions, protocols, and handoff patterns:
-
-| Agent | Alias | Role |
-|-------|-------|------|
-| `chief-of-ops` | **Marcus** | Session lead — scans repo, routes to permanent team |
-| `architect` | **Tony** | System design, APIs, schemas, structure decisions |
-| `sr-dev` | **Doug** | Feature implementation, pipeline integrity, data contracts |
-| `frontend` | **Ava** | UI, components, styling, React, visual interfaces |
-| `bug-hunter` | **Nate** | Root cause detection, silent failures, error surfacing |
-| `code-reviewer` | **Linda** | Code quality, SOLID, PR review, conventions |
-| `database-reviewer` | **Omar** | Schema design, queries, indexes, migrations, performance |
-| `security-reviewer` | **Elliot** | API security, auth, input validation, secrets |
-| `devops` | **Ray** | CI/CD, scripts, hooks, automation, environment setup |
-| `qa` | **Chris** | E2E testing, TDD, integration tests (non-blocking) |
-| `refactor-cleaner` | **Mark** | Dead code removal, structural cleanup, tech debt |
-| `claude-specialist` | **Jared** | Budget tracking, spend projections, revenue monitoring, CC platform optimization |
 
 ---
 
 ## Skills
 
-18 skills mapped to agents via `skills-library.json`:
+18 skills mapped to agents via `skills-library.json`. Skills are invoked as slash commands (`/skill-name`) and auto-matched to agents by task keywords.
 
-| Skill | Owner Agent(s) |
-|-------|---------------|
-| `senior-architect` | architect |
-| `search-first` | architect |
-| `senior-backend` | sr-dev |
-| `api-design-reviewer` | architect, sr-dev |
-| `verification-loop` | sr-dev |
-| `code-reviewer` | code-reviewer |
-| `database-engineering` | database-reviewer |
-| `migration-architect` | database-reviewer |
-| `supabase-postgres-best-practices` | database-reviewer |
-| `senior-security` | security-reviewer |
-| `env-secrets-manager` | security-reviewer, devops |
-| `ui-ux-pro-max` | frontend |
-| `web-asset-generator` | frontend |
-| `codebase-to-course` | frontend |
-| `tdd-workflow` | qa |
-| `e2e-testing` | qa |
-| `api-test-suite-builder` | qa |
-| `find-skills` | general |
+| Skill | Owner | Domain |
+|-------|-------|--------|
+| `senior-architect` | Tony | System design, architecture diagrams |
+| `search-first` | Tony | Research before coding |
+| `senior-backend` | Doug | APIs, microservices, auth |
+| `api-design-reviewer` | Tony, Doug | API contracts, breaking changes |
+| `verification-loop` | Doug | Pre-PR: build, lint, test, security |
+| `code-reviewer` | Linda | PR analysis, SOLID, code smells |
+| `database-engineering` | Omar | Schema, queries, indexes |
+| `migration-architect` | Omar | Zero-downtime migrations |
+| `supabase-postgres-best-practices` | Omar | Postgres optimization, RLS |
+| `senior-security` | Elliot | Threat modeling, STRIDE, pentesting |
+| `env-secrets-manager` | Elliot, Ray | Key management, secret rotation |
+| `ui-ux-pro-max` | Ava | Design systems, styling, components |
+| `web-asset-generator` | Ava | Favicons, app icons, OG images |
+| `codebase-to-course` | Ava | Interactive HTML courses from code |
+| `tdd-workflow` | Chris | RED/GREEN/REFACTOR with git checkpoints |
+| `e2e-testing` | Chris | Playwright, Page Object Model |
+| `api-test-suite-builder` | Chris | API test automation |
+| `find-skills` | — | Discover and install new skills |
+
+See `references/slash-commands.md` for the full command reference.
 
 ---
 
 ## KeyMaster
 
-Centralized API key management. Single vault at `~/.keys/vault.json`, generates per-project `.env` files.
+Centralized API key management. Single vault, per-project `.env` generation.
 
 ```bash
 keymaster status              # Dashboard
-keymaster add API_KEY_NAME    # Add a key (interactive)
+keymaster add API_KEY_NAME    # Add a key
 keymaster sync PROJECT        # Generate .env for a project
 keymaster audit               # Security check
-keymaster require PROJECT K1 K2  # Declare project key requirements
+keymaster require PROJECT K1  # Declare project key requirements
 ```
 
-See `keymaster/README.md` for full reference.
+Migrate vault to a new machine:
+```bash
+bash ~/ai-dev-toolkit/keymaster/migrate-vault.sh scp user@old-machine
+```
 
 ---
 
-## Project Agent Templates
+## Budget Tracking
 
-Every new project gets Vincent (Project Lead) scaffolded into `.claude/agents/`. The template lives in `project-agents/` and includes the full orchestration protocol — just fill in the delegation map and pipeline sequence.
+Jared maintains per-project spend and revenue data:
 
-| Agent | Alias | Job Title |
-|-------|-------|-----------|
-| `orchestrator` | **Vincent** | Project Lead |
+- **Costs**: API usage, infrastructure, external services
+- **Revenue**: Sales, subscriptions, affiliate, ads
+- **Projections**: Extrapolated from historical patterns + known pricing
+- **Alerts**: Overspend thresholds, missing revenue tracking, cost jumps
 
-Additional domain agents (e.g. `@researcher`, `@backend`, `@designer`) are created per-project via the agent factory based on what the project needs.
-
----
-
-## Agent Factory
-
-Create project-specific agents on demand during any session:
-
-1. Session starts — `session-start.sh` fires automatically
-2. Shows existing agents for this project
-3. Offers interactive agent creation
-4. Skills auto-matched from role + task keywords
-5. Agent created at `.claude/agents/<name>.md`
-
-Supports 16 roles: backend, frontend, fullstack, mobile, devops, qa, security, architect, database, product, pm, marketing, release, advisor, video-compiler, content-automation.
-
----
-
-## CLAUDE.md Templates
-
-| Template | Best For |
-|----------|---------|
-| `saas-mobile.md` | React Native + Node.js + AWS |
-| `saas-web.md` | React/Next.js + Node.js + AWS |
-| `saas-nextjs.md` | Next.js + Supabase + Stripe |
-| `api-only.md` | Pure backend API service |
-| `go-microservice.md` | Go + gRPC + PostgreSQL |
-| `django-api.md` | Django REST + Celery + PostgreSQL |
-| `laravel-api.md` | Laravel + PostgreSQL + Redis |
-| `rust-api.md` | Rust + Axum + SQLx + PostgreSQL |
+Ask: "How much am I spending?", "What's printpilot costing me?", "Am I profitable?"
 
 ---
 
 ## Scripts
 
-| Script | When To Run | What It Does |
-|--------|-------------|--------------|
-| `initial-setup.sh` | Fresh machine (idempotent) | Installs everything from local repo |
-| `update.sh` | Anytime | Pulls latest toolkit, refreshes installed files |
+| Script | When | What It Does |
+|--------|------|-------------|
+| `initial-setup.sh` | Fresh machine | Installs system deps + full toolkit |
+| `update.sh` | Anytime | Pulls latest, refreshes installed files |
+| `update.sh --force` | When needed | Overwrites CLAUDE.md + agents |
 | `verify-install.sh` | After setup | Confirms everything installed correctly |
 
 ---
 
-## Shell Aliases
+## Agent Factory
 
-After setup, these are available:
+When the permanent team can't cover a domain, Marcus creates bench agents:
 
-| Alias | What It Does |
-|-------|-------------|
-| `cc` | Launch Claude Code with session-start hook |
-| `ccnew` | Same as `cc` — launch in current project dir |
+1. Marcus identifies the skill gap mid-session
+2. Reports the finding — never interrupts workflow
+3. You approve — bench agents are never auto-created
+4. Agent factory resolves skills from 16 supported roles
+5. New agent ships production-ready in `PROJECT/.claude/agents/`
 
----
-
-## Keeping Up To Date
-
-```bash
-bash ~/ai-dev-toolkit/update.sh          # Normal update
-bash ~/ai-dev-toolkit/update.sh --force  # Force overwrite CLAUDE.md + agents
-```
+Supported roles: backend, frontend, fullstack, mobile, devops, qa, security, architect, database, product, pm, marketing, release, advisor, video-compiler, content-automation.
 
 ---
 
