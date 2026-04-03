@@ -62,7 +62,7 @@ cd ~/projects/my-app && ccnew
 | `devops` | **Ray** | CI/CD, scripts, hooks, automation, environment setup |
 | `qa` | **Chris** | E2E testing, TDD, integration tests (non-blocking) |
 | `refactor-cleaner` | **Mark** | Dead code removal, structural cleanup, tech debt |
-| `claude-specialist` | **Jared** | Subscription optimization, model selection, Anthropic updates |
+| `claude-specialist` | **Jared** | Budget tracking, spend projections, revenue monitoring, CC platform optimization |
 
 ---
 

@@ -42,7 +42,7 @@ Route work to the right specialist. Never do their job.
 | `@devops` | Ray | CI/CD, deployment, automation, hooks, environment |
 | `@qa` | Chris | E2E testing, integration testing, regression checks |
 | `@refactor-cleaner` | Mark | Dead code removal, structural cleanup, tech debt |
-| `@claude-specialist` | Jared | Claude/Anthropic optimization, model selection |
+| `@claude-specialist` | Jared | Budget tracking, spend projections, revenue, CC platform optimization |
 
 ## Delegation Rules
 

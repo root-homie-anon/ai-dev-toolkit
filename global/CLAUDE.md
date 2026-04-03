@@ -45,7 +45,7 @@ Agents auto-activate based on task context. Available agents:
 | `@devops` | **Ray** | CI/CD, scripts, hooks, deployment, automation |
 | `@qa` | **Chris** | After any feature completes — non-blocking, background |
 | `@refactor-cleaner` | **Mark** | Dead code removal, structural cleanup, tech debt |
-| `@claude-specialist` | **Jared** | Subscription optimization, model selection, Anthropic updates |
+| `@claude-specialist` | **Jared** | Budget tracking, spend projections, revenue, CC platform optimization |
 
 ### Skill Resolution
 Before spawning an agent, check `~/.claude/skills-library.json` for keyword matches. Only load skills confirmed installed in `~/.claude/skills/`. Flag missing skills to the user.
