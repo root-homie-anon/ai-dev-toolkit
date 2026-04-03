@@ -80,7 +80,7 @@ main() {
   if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
     if [[ ! -f "$AGENT_FACTORY" ]]; then
       echo "ERROR: agent-factory.sh not found at ${AGENT_FACTORY}"
-      echo "Run setup first: bash ~/ai-dev-toolkit/setup.sh"
+      echo "Run setup first: bash ~/ai-dev-toolkit/initial-setup.sh"
       exit 1
     fi
     bash "$AGENT_FACTORY" "$PROJECT_NAME" "$PROJECT_PATH"

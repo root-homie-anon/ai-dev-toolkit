@@ -1,10 +1,10 @@
 {
   "_meta": {
-    "version": "1.2.0",
+    "version": "1.3.0",
     "description": "Global skill library for Claude Code Agent Factory",
     "source": "https://github.com/alirezarezvani/claude-skills",
     "install_path": "~/.claude/skills/",
-    "changelog": "1.2.0 — replaced Kling with Runway ML, added runway/image-to-video keywords. 1.1.0 — added remotion role, video-compiler role, and youtube-automation task keywords"
+    "changelog": "1.3.0 — added ui-ux-pro-max (frontend/fullstack/mobile), web-asset-generator (frontend/fullstack/mobile). 1.2.0 — replaced Kling with Runway ML, added runway/image-to-video keywords. 1.1.0 — added remotion role, video-compiler role, and youtube-automation task keywords"
   },
 
   "roles": {
@@ -23,7 +23,9 @@
         "engineering-team/senior-frontend",
         "engineering-team/senior-architect",
         "engineering-team/code-reviewer",
-        "engineering/api-design-reviewer"
+        "engineering/api-design-reviewer",
+        "ui-ux-pro-max",
+        "web-asset-generator"
       ],
       "description": "UI, React, web interfaces"
     },
@@ -33,7 +35,9 @@
         "engineering-team/senior-backend",
         "engineering-team/senior-frontend",
         "engineering-team/senior-architect",
-        "engineering-team/code-reviewer"
+        "engineering-team/code-reviewer",
+        "ui-ux-pro-max",
+        "web-asset-generator"
       ],
       "description": "Full stack across frontend and backend"
     },
@@ -42,7 +46,9 @@
         "engineering-team/senior-frontend",
         "engineering-team/senior-fullstack",
         "engineering-team/code-reviewer",
-        "product-team/app-store-optimization"
+        "product-team/app-store-optimization",
+        "ui-ux-pro-max",
+        "web-asset-generator"
       ],
       "description": "React Native, Expo, mobile apps"
     },
@@ -228,8 +234,22 @@
     "telegram": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
     "telegram bot": ["engineering-team/senior-backend", "engineering/api-design-reviewer"],
     "ken burns": ["engineering-team/senior-frontend", "engineering-team/senior-architect"],
-    "thumbnail": ["engineering-team/senior-frontend", "marketing-skill/content-creator"],
+    "thumbnail": ["engineering-team/senior-frontend", "marketing-skill/content-creator", "web-asset-generator"],
     "script generation": ["marketing-skill/content-creator", "engineering/agent-workflow-designer"],
-    "content pipeline": ["engineering/agent-workflow-designer", "engineering-team/senior-backend", "marketing-skill/content-creator"]
+    "content pipeline": ["engineering/agent-workflow-designer", "engineering-team/senior-backend", "marketing-skill/content-creator"],
+    "ui": ["ui-ux-pro-max", "engineering-team/senior-frontend"],
+    "ux": ["ui-ux-pro-max", "engineering-team/senior-frontend"],
+    "design system": ["ui-ux-pro-max", "engineering-team/senior-frontend"],
+    "landing page": ["ui-ux-pro-max", "engineering-team/senior-frontend"],
+    "dashboard": ["ui-ux-pro-max", "engineering-team/senior-frontend"],
+    "glassmorphism": ["ui-ux-pro-max"],
+    "dark mode": ["ui-ux-pro-max", "engineering-team/senior-frontend"],
+    "favicon": ["web-asset-generator", "engineering-team/senior-frontend"],
+    "app icon": ["web-asset-generator", "product-team/app-store-optimization"],
+    "og image": ["web-asset-generator", "marketing-skill/content-creator"],
+    "social image": ["web-asset-generator", "marketing-skill/content-creator"],
+    "open graph": ["web-asset-generator", "marketing-skill/content-creator"],
+    "pwa": ["web-asset-generator", "engineering-team/senior-frontend"],
+    "manifest": ["web-asset-generator", "engineering-team/senior-frontend"]
   }
 }

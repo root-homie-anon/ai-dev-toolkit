@@ -24,20 +24,22 @@ warn()    { echo -e "${YELLOW}!${RESET} $1"; }
 header()  { echo -e "\n${BOLD}${BLUE}$1${RESET}"; }
 
 list_roles() {
-  echo "  backend   - Backend API, services, business logic"
-  echo "  frontend  - UI, React Native, web interfaces"
-  echo "  fullstack - Full stack across frontend and backend"
-  echo "  mobile    - React Native, Expo, mobile apps"
-  echo "  devops    - Infrastructure, CI/CD, deployment, monitoring"
-  echo "  qa        - Testing, QA, quality assurance"
-  echo "  security  - Security auditing, threat modeling"
-  echo "  architect - System design, architecture decisions"
-  echo "  database  - Database design, schema, migrations"
-  echo "  product   - Product management, roadmap, strategy"
-  echo "  pm        - Project management, sprints, delivery"
-  echo "  marketing - Marketing, content, ASO, growth"
-  echo "  release   - Release management, versioning"
-  echo "  advisor   - Strategic advisory, C-level decisions"
+  echo "  backend          - Backend API, services, business logic"
+  echo "  frontend         - UI, React, web interfaces"
+  echo "  fullstack        - Full stack across frontend and backend"
+  echo "  mobile           - React Native, Expo, mobile apps"
+  echo "  devops           - Infrastructure, CI/CD, deployment, monitoring"
+  echo "  qa               - Testing, QA, quality assurance"
+  echo "  security         - Security auditing, threat modeling"
+  echo "  architect        - System design, architecture decisions"
+  echo "  database         - Database design, schema, migrations"
+  echo "  product          - Product management, roadmap, strategy"
+  echo "  pm               - Project management, sprints, delivery"
+  echo "  marketing        - Marketing, content, ASO, growth"
+  echo "  release          - Release management, versioning"
+  echo "  advisor          - Strategic advisory, C-level decisions"
+  echo "  video-compiler   - Remotion video compilation"
+  echo "  content-automation - AI content generation pipelines"
 }
 
 get_role_skills() {
@@ -206,10 +208,7 @@ create_agent() {
   echo ""
   log "Resolving skills for role '${role}' and task context..."
 
-  local role_skills
-  local task_skills
-  local all_skills
-  local skill_count
+  local role_skills task_skills all_skills skill_count
 
   role_skills=$(get_role_skills "$role")
   task_skills=$(get_task_skills "$task")

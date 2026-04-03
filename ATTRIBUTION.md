@@ -1,62 +1,72 @@
-# Attributions & Credits
+# ATTRIBUTION.md
 
-This toolkit builds on open-source work from the following authors and repositories.
-All original licenses are MIT and are preserved here.
-
----
-
-## Alireza Rezvani
-
-Website: https://alirezarezvani.com
-Medium: https://alirezarezvani.medium.com
-GitHub: https://github.com/alirezarezvani
-
-### claude-skills
-Repository: https://github.com/alirezarezvani/claude-skills
-License: MIT
-Used for:
-- Skills library structure and role/domain organization
-- Skill package names and paths in agent-factory/skills-library.json
-- Task keyword-to-skill mappings
-- Domain expertise bundles (engineering, product, marketing, etc.)
-
-### claude-code-tresor
-Repository: https://github.com/alirezarezvani/claude-code-tresor
-License: MIT
-Used for:
-- Slash command format and structure patterns
-- Autonomous skill conventions
-- Workflow automation approaches
-
-### claude-code-skill-factory
-Repository: https://github.com/alirezarezvani/claude-code-skill-factory
-License: MIT
-Used for:
-- Skill generation methodology
-- SKILL.md frontmatter format specification
-- Agent file structure patterns
+All third-party tools, skills, and agents integrated into this toolkit are listed here with their original authors, licenses, and source repositories.
 
 ---
 
-## MIT License (reproduced)
+## Agent Factory Skills
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+**claude-skills** by Alireza Rezvani
+- Repo: https://github.com/alirezarezvani/claude-skills
+- License: MIT
+- Used for: Base skill library referenced in `skills-library.json`
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+**claude-code-tresor** by Alireza Rezvani
+- Repo: https://github.com/alirezarezvani/claude-code-tresor
+- License: MIT
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+**claude-code-skill-factory** by Alireza Rezvani
+- Repo: https://github.com/alirezarezvani/claude-code-skill-factory
+- License: MIT
 
 ---
 
-## Contributing Your Own Work
+## Pre-built Agents + Rules + Skills
 
-If you contribute to this toolkit, your work is also MIT licensed.
-Add yourself to this file in your PR.
+**everything-claude-code (ECC)** by Affaan Mustafa (@affaan-m)
+- Repo: https://github.com/affaan-m/everything-claude-code
+- License: MIT
+- Used for: 26 pre-built agents in `agent-factory/agents/`, ECC rules (`~/.claude/rules/`), and core skills (`~/.claude/skills/`)
+- See: `references/everything-claude-code.md`
+
+---
+
+## System-Wide Tools
+
+**claude-mem** by Alex Newman (@thedotmack)
+- Repo: https://github.com/thedotmack/claude-mem
+- License: AGPL-3.0
+- Used for: Persistent session memory, context compression and injection
+- See: `references/claude-mem.md`
+
+**get-shit-done (GSD)** by TÂCHES (@glittercowboy)
+- Repo: https://github.com/gsd-build/get-shit-done
+- License: MIT
+- Used for: Spec-driven development workflow, context engineering, parallel subagent execution
+- See: `references/get-shit-done.md`
+
+**codebase-to-course** by Zara (@zarazhangrui)
+- Repo: https://github.com/zarazhangrui/codebase-to-course
+- License: Not specified — used with attribution
+- Used for: Interactive HTML course generation from any codebase
+- See: `references/codebase-to-course.md`
+
+---
+
+## Project-Scoped Skills
+
+**ui-ux-pro-max-skill** by nextlevelbuilder
+- Repo: https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
+- License: MIT
+- Used for: Design intelligence, UI/UX system generation for frontend/fullstack/mobile agents
+- See: `references/ui-ux-pro-max.md`
+
+**web-asset-generator** by Alon Wolenitz (@alonw0)
+- Repo: https://github.com/alonw0/web-asset-generator
+- License: MIT
+- Used for: Favicon, app icon, and social image generation for frontend/fullstack/mobile agents
+- See: `references/web-asset-generator.md`
+
+---
+
+All tools are used in accordance with their respective licenses. Modifications to original sources are documented in `references/`.
