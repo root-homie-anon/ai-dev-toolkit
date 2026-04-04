@@ -3,10 +3,11 @@
 # ai-dev-toolkit — mac-setup.sh
 # Run on a brand new Mac to go from zero to Claude Code ready.
 # Installs everything: Xcode CLI, Homebrew, Node, Python, Git,
-# Claude Code, then runs the toolkit setup.
+# project dependencies, Claude Code, then runs the toolkit setup.
 #
-# Usage: curl the script or copy it to the Mac and run:
-#   bash mac-setup.sh
+# Run mac-system-prep.sh FIRST for security hardening.
+#
+# Usage: bash mac-setup.sh
 # ============================================================
 
 set -euo pipefail
@@ -24,12 +25,26 @@ warn()    { echo -e "${YELLOW}[warn]${RESET}  $1"; }
 fail()    { echo -e "${RED}[fail]${RESET}  $1"; exit 1; }
 header()  { echo -e "\n${BOLD}${CYAN}── $1 ──${RESET}"; }
 
+brew_install() {
+  local cmd="$1" pkg="${2:-$1}"
+  if command -v "$cmd" &>/dev/null; then
+    success "${pkg} already installed"
+  else
+    log "Installing ${pkg}..."
+    brew install "$pkg" --quiet 2>/dev/null && success "${pkg} installed" || warn "Failed to install ${pkg}"
+  fi
+}
+
 echo ""
 echo -e "${BOLD}================================================${RESET}"
 echo -e "${BOLD}  Strong Tower Media AI Studio${RESET}"
 echo -e "${BOLD}  Mac Mini Setup — Zero to Claude Code${RESET}"
 echo -e "${BOLD}================================================${RESET}"
 echo ""
+
+# ══════════════════════════════════════════════════════════════
+# PHASE 1: FOUNDATION
+# ══════════════════════════════════════════════════════════════
 
 # ── Xcode Command Line Tools ─────────────────────────────────
 header "Xcode Command Line Tools"
@@ -39,7 +54,6 @@ if xcode-select -p &>/dev/null; then
 else
   log "Installing Xcode Command Line Tools (this may take a few minutes)..."
   xcode-select --install 2>/dev/null || true
-  # Wait for installation to complete
   echo ""
   echo "  A dialog should have appeared to install Xcode CLI tools."
   echo "  Click 'Install' and wait for it to finish."
@@ -62,7 +76,6 @@ else
   log "Installing Homebrew..."
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-  # Add Homebrew to PATH for this session (Apple Silicon vs Intel)
   if [[ -f /opt/homebrew/bin/brew ]]; then
     eval "$(/opt/homebrew/bin/brew shellenv)"
     echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> "${HOME}/.zprofile"
@@ -70,46 +83,118 @@ else
     eval "$(/usr/local/bin/brew shellenv)"
   fi
 
-  if command -v brew &>/dev/null; then
-    success "Homebrew installed"
-  else
-    fail "Homebrew installation failed"
-  fi
+  command -v brew &>/dev/null && success "Homebrew installed" || fail "Homebrew installation failed"
 fi
 
-# ── Core packages ─────────────────────────────────────────────
-header "Core Packages"
+# ══════════════════════════════════════════════════════════════
+# PHASE 2: CORE RUNTIMES
+# ══════════════════════════════════════════════════════════════
 
-PACKAGES=(git node python3 jq)
+header "Core Runtimes"
 
-for pkg in "${PACKAGES[@]}"; do
-  if command -v "$pkg" &>/dev/null; then
-    success "${pkg} already installed"
-  else
-    log "Installing ${pkg}..."
-    brew install "$pkg" --quiet
-    success "${pkg} installed"
-  fi
-done
+brew_install git
+brew_install node node@20
+brew_install python3 python@3.11
+brew_install jq
+brew_install npm   # comes with node but verify
 
-# ── npm (comes with node, but verify) ────────────────────────
-if command -v npm &>/dev/null; then
-  success "npm ready ($(npm --version))"
+# Ensure node@20 is linked if brew installed a versioned formula
+brew link --overwrite node@20 2>/dev/null || true
+
+# ══════════════════════════════════════════════════════════════
+# PHASE 3: PROJECT DEPENDENCIES (System-Level)
+# ══════════════════════════════════════════════════════════════
+
+header "Database Services"
+
+brew_install psql postgresql@16
+brew_install redis
+
+# Start services (launchd — survive reboots)
+brew services start postgresql@16 2>/dev/null && success "PostgreSQL service started" || warn "PostgreSQL service start failed"
+brew services start redis 2>/dev/null && success "Redis service started" || warn "Redis service start failed"
+
+header "Media & Image Processing"
+
+brew_install ffmpeg
+brew_install vips   # libvips for Sharp (image processing)
+
+header "Search"
+
+brew_install meilisearch
+# Don't auto-start meilisearch — only BibleApp needs it
+log "Meilisearch installed (start manually when needed: meilisearch)"
+
+header "Browser Automation"
+
+# Chromium for Puppeteer/Playwright
+if [[ -d "/Applications/Chromium.app" ]] || command -v chromium &>/dev/null; then
+  success "Chromium already installed"
 else
-  warn "npm not found — should have come with node"
+  brew install --cask chromium --quiet 2>/dev/null && success "Chromium installed" || \
+  warn "Chromium install failed — Puppeteer will download its own"
 fi
 
-# ── Python pip ────────────────────────────────────────────────
-header "Python Dependencies"
+header "Trading Dependencies"
+
+# TA-Lib C library (required before pip install ta-lib)
+if brew list ta-lib &>/dev/null 2>&1; then
+  success "ta-lib already installed"
+else
+  brew install ta-lib --quiet 2>/dev/null && success "ta-lib installed" || warn "ta-lib install failed"
+fi
+
+header "Docker"
+
+if command -v docker &>/dev/null; then
+  success "Docker already installed"
+else
+  log "Installing Docker Desktop..."
+  brew install --cask docker --quiet 2>/dev/null && success "Docker Desktop installed" || \
+  warn "Docker install failed — install manually from docker.com"
+  echo ""
+  echo "  Open Docker Desktop from Applications to complete setup."
+  echo "  It needs to run once to initialize."
+  echo ""
+fi
+
+# ══════════════════════════════════════════════════════════════
+# PHASE 4: PYTHON DEPENDENCIES
+# ══════════════════════════════════════════════════════════════
+
+header "Python Dependencies (Global)"
 
 if command -v pip3 &>/dev/null; then
-  pip3 install --quiet Pillow anthropic 2>/dev/null || true
-  success "Python deps installed (Pillow, anthropic)"
+  pip3 install --quiet --break-system-packages \
+    Pillow anthropic flask praw elevenlabs \
+    google-api-python-client google-auth google-auth-oauthlib \
+    edge-tts aiohttp requests python-dotenv \
+    2>/dev/null || \
+  pip3 install --quiet \
+    Pillow anthropic flask praw elevenlabs \
+    google-api-python-client google-auth google-auth-oauthlib \
+    edge-tts aiohttp requests python-dotenv \
+    2>/dev/null || true
+  success "Core Python deps installed"
+
+  # Trading deps (separate — ta-lib can fail if C lib missing)
+  pip3 install --quiet --break-system-packages \
+    pandas numpy scipy ta-lib pandas-ta sqlalchemy \
+    matplotlib plotly apscheduler oandapyV20 \
+    2>/dev/null || \
+  pip3 install --quiet \
+    pandas numpy scipy ta-lib pandas-ta sqlalchemy \
+    matplotlib plotly apscheduler oandapyV20 \
+    2>/dev/null || warn "Some trading deps failed — check ta-lib C library"
+  success "Trading Python deps installed"
 else
-  warn "pip3 not found — install manually: pip3 install Pillow anthropic"
+  warn "pip3 not found"
 fi
 
-# ── Claude Code ───────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# PHASE 5: CLAUDE CODE
+# ══════════════════════════════════════════════════════════════
+
 header "Claude Code"
 
 if command -v claude &>/dev/null; then
@@ -117,12 +202,7 @@ if command -v claude &>/dev/null; then
 else
   log "Installing Claude Code..."
   npm install -g @anthropic-ai/claude-code
-
-  if command -v claude &>/dev/null; then
-    success "Claude Code installed"
-  else
-    fail "Claude Code installation failed"
-  fi
+  command -v claude &>/dev/null && success "Claude Code installed" || fail "Claude Code installation failed"
 fi
 
 # ── Claude Code Authentication ────────────────────────────────
@@ -138,16 +218,13 @@ claude auth login 2>/dev/null || claude login 2>/dev/null || {
   warn "Auto-auth failed. Run 'claude' manually to authenticate."
 }
 
-# ── Directory Structure ───────────────────────────────────────
-header "Directory Structure"
+# ══════════════════════════════════════════════════════════════
+# PHASE 6: AI DEV TOOLKIT
+# ══════════════════════════════════════════════════════════════
 
-mkdir -p "${HOME}/projects"
-mkdir -p "${HOME}/bin"
-mkdir -p "${HOME}/.keys"
-success "~/projects, ~/bin, ~/.keys created"
-
-# ── Clone ai-dev-toolkit ─────────────────────────────────────
 header "AI Dev Toolkit"
+
+mkdir -p "${HOME}/projects" "${HOME}/bin" "${HOME}/.keys"
 
 TOOLKIT_DIR="${HOME}/ai-dev-toolkit"
 
@@ -161,15 +238,16 @@ else
   success "Toolkit cloned to ~/ai-dev-toolkit"
 fi
 
-# ── Run Toolkit Setup ─────────────────────────────────────────
 header "Running Toolkit Setup"
 
 bash "${TOOLKIT_DIR}/initial-setup.sh"
 
-# ── Shell Config (macOS uses zsh by default) ──────────────────
+# ══════════════════════════════════════════════════════════════
+# PHASE 7: SHELL CONFIG (macOS zsh)
+# ══════════════════════════════════════════════════════════════
+
 header "Shell Config (zsh)"
 
-# macOS defaults to zsh — make sure our config is in .zshrc too
 MARKER="# ai-dev-toolkit"
 BASHRC_ADDITIONS="${TOOLKIT_DIR}/dotfiles/bashrc-additions.sh"
 
@@ -188,7 +266,6 @@ if [[ -f "${HOME}/.zshrc" ]] || [[ ! -f "${HOME}/.bashrc" ]]; then
   fi
 fi
 
-# Also ensure Homebrew is in zsh PATH
 if ! grep -qF "homebrew" "${HOME}/.zshrc" 2>/dev/null; then
   if [[ -f /opt/homebrew/bin/brew ]]; then
     echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> "${HOME}/.zshrc"
@@ -196,48 +273,48 @@ if ! grep -qF "homebrew" "${HOME}/.zshrc" 2>/dev/null; then
   fi
 fi
 
-# Ensure ~/bin is in PATH
 if ! grep -qF 'HOME/bin' "${HOME}/.zshrc" 2>/dev/null; then
   echo 'export PATH="$HOME/bin:$HOME/.local/bin:$PATH"' >> "${HOME}/.zshrc"
   success "~/bin added to PATH in ~/.zshrc"
 fi
 
-# ── KeyMaster Vault Migration ────────────────────────────────
-header "KeyMaster Vault Migration"
+# ══════════════════════════════════════════════════════════════
+# PHASE 8: VERIFICATION
+# ══════════════════════════════════════════════════════════════
 
-echo ""
-echo "  If you have a vault to migrate from another machine:"
-echo ""
-echo "    bash ~/ai-dev-toolkit/keymaster/migrate-vault.sh scp user@old-machine"
-echo ""
-echo "  Or from a USB/shared folder:"
-echo ""
-echo "    bash ~/ai-dev-toolkit/keymaster/migrate-vault.sh file /path/to/vault.json"
-echo ""
-echo "  Then run: keymaster sync"
-echo ""
-
-# ── Verify ────────────────────────────────────────────────────
 header "Verification"
 
 echo ""
-command -v git     &>/dev/null && success "git $(git --version | awk '{print $3}')" || warn "git missing"
-command -v node    &>/dev/null && success "node $(node --version)" || warn "node missing"
-command -v python3 &>/dev/null && success "python3 $(python3 --version 2>&1 | awk '{print $2}')" || warn "python3 missing"
-command -v npm     &>/dev/null && success "npm $(npm --version)" || warn "npm missing"
-command -v jq      &>/dev/null && success "jq found" || warn "jq missing"
-command -v claude  &>/dev/null && success "claude found" || warn "claude missing"
-command -v brew    &>/dev/null && success "brew found" || warn "brew missing"
+echo -e "${BOLD}Runtimes:${RESET}"
+command -v git      &>/dev/null && success "git $(git --version | awk '{print $3}')" || warn "git missing"
+command -v node     &>/dev/null && success "node $(node --version)" || warn "node missing"
+command -v python3  &>/dev/null && success "python3 $(python3 --version 2>&1 | awk '{print $2}')" || warn "python3 missing"
+command -v npm      &>/dev/null && success "npm $(npm --version)" || warn "npm missing"
+command -v jq       &>/dev/null && success "jq found" || warn "jq missing"
+command -v claude   &>/dev/null && success "claude found" || warn "claude missing"
 
 echo ""
+echo -e "${BOLD}Services:${RESET}"
+command -v psql     &>/dev/null && success "postgresql found" || warn "postgresql missing"
+command -v redis-cli &>/dev/null && success "redis found" || warn "redis missing"
+command -v ffmpeg   &>/dev/null && success "ffmpeg found" || warn "ffmpeg missing"
+command -v meilisearch &>/dev/null && success "meilisearch found" || warn "meilisearch missing"
+command -v docker   &>/dev/null && success "docker found" || warn "docker missing"
+command -v vips     &>/dev/null && success "libvips found" || warn "libvips missing — Sharp may fail"
+
+echo ""
+echo -e "${BOLD}Toolkit:${RESET}"
 AGENT_COUNT=$(find "${HOME}/.claude/agents" -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
 SKILL_COUNT=$(find "${HOME}/.claude/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
 success "${AGENT_COUNT} agents installed"
 success "${SKILL_COUNT} skills installed"
 [[ -f "${HOME}/.claude/CLAUDE.md" ]] && success "Global CLAUDE.md ready" || warn "CLAUDE.md missing"
-[[ -f "${HOME}/bin/keymaster" ]] && success "KeyMaster ready" || warn "KeyMaster not installed (migrate vault to complete)"
+[[ -f "${HOME}/bin/keymaster" ]] && success "KeyMaster ready" || warn "KeyMaster not installed"
 
-# ── Done ──────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════
+# DONE
+# ══════════════════════════════════════════════════════════════
+
 echo ""
 echo -e "${GREEN}${BOLD}================================================${RESET}"
 echo -e "${GREEN}${BOLD}  Mac Mini Setup Complete${RESET}"
@@ -245,10 +322,30 @@ echo -e "${GREEN}${BOLD}================================================${RESET}
 echo ""
 echo "  Next steps:"
 echo ""
-echo "    1. Open a new terminal (or run: source ~/.zshrc)"
-echo "    2. Migrate your vault:  bash ~/ai-dev-toolkit/keymaster/migrate-vault.sh scp user@old-machine"
-echo "    3. Sync project keys:   keymaster sync"
-echo "    4. Start working:       cd ~/projects/my-app && ccnew"
+echo "    1. Open a new terminal (or: source ~/.zshrc)"
+echo ""
+echo "    2. Migrate your vault:"
+echo "       bash ~/ai-dev-toolkit/keymaster/migrate-vault.sh scp user@old-machine"
+echo "       keymaster sync"
+echo ""
+echo "    3. Configure MCP servers in Claude Code:"
+echo "       Open CC and connect these MCPs for your projects:"
+echo ""
+echo "       Required:"
+echo "         - GitHub          (all projects — PRs, issues)"
+echo "         - Supabase        (JobApp, Nudge_AI, YT_Channel_Auto, frequency-soundscape)"
+echo ""
+echo "       Recommended:"
+echo "         - Notion          (printpilot — template creation)"
+echo "         - Telegram        (printpilot, YT_Channel_Auto, RedForge — notifications)"
+echo "         - Stripe          (ADForge, Nudge_AI, JobApp — payments + revenue data)"
+echo "         - Gmail           (notifications, alerts)"
+echo "         - Google Calendar (scheduling)"
+echo ""
+echo "       To connect: open CC, type /mcp, or configure in ~/.claude/settings.json"
+echo ""
+echo "    4. Start working:"
+echo "       cd ~/projects/my-app && ccnew"
 echo ""
 echo "  Verify install:  bash ~/ai-dev-toolkit/verify-install.sh"
 echo ""
