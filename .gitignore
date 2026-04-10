@@ -26,3 +26,6 @@ config.json
 # Session data
 state/
 *.jsonl
+
+# Claude Code runtime state (worktrees, local cache)
+.claude/
