@@ -8,5 +8,33 @@
       "Glob(*)",
       "Grep(*)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.claude/hooks/pre-task-log.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.claude/hooks/post-edit-flag.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash $HOME/.claude/hooks/post-edit-commit-reminder.sh"
+          }
+        ]
+      }
+    ]
   }
 }
