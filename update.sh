@@ -12,6 +12,7 @@ TOOLKIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_HOME="${HOME}/.claude"
 SKILLS_DIR="${CLAUDE_HOME}/skills"
 AGENTS_DIR="${CLAUDE_HOME}/agents"
+RULES_DIR="${CLAUDE_HOME}/rules"
 FORCE=false
 
 [[ "${1:-}" == "--force" ]] && FORCE=true
@@ -92,8 +93,29 @@ for skill_dir in "${TOOLKIT_DIR}/skills/"*/; do
   fi
 done
 
+# ── Rules (canonical domain conventions) ──────────────────────
+header "Rules"
+
+mkdir -p "$RULES_DIR"
+if [[ -d "${TOOLKIT_DIR}/rules" ]]; then
+  for rule_file in "${TOOLKIT_DIR}/rules/"*.md; do
+    [[ -f "$rule_file" ]] || continue
+    name="$(basename "$rule_file")"
+    dest="${RULES_DIR}/${name}"
+    if $FORCE || [[ ! -f "$dest" ]] || ! diff -q "$rule_file" "$dest" &>/dev/null; then
+      cp "$rule_file" "$dest"
+      success "Rule updated: ${name%.md}"
+      UPDATES=$((UPDATES + 1))
+    fi
+  done
+else
+  log "No rules directory in toolkit — skipping"
+fi
+
 # ── Hooks & Scripts ───────────────────────────────────────────
 header "Hooks & Scripts"
+
+mkdir -p "${CLAUDE_HOME}/hooks" "${CLAUDE_HOME}/logs"
 
 cp "${TOOLKIT_DIR}/agent-factory/hooks/session-start.sh" \
    "${CLAUDE_HOME}/hooks/session-start.sh"
@@ -102,6 +124,14 @@ chmod +x "${CLAUDE_HOME}/hooks/session-start.sh"
 cp "${TOOLKIT_DIR}/hooks/orchestrator.sh" \
    "${CLAUDE_HOME}/hooks/orchestrator.sh"
 chmod +x "${CLAUDE_HOME}/hooks/orchestrator.sh"
+
+# Team Operating Model enforcement hooks (tool-call hooks)
+for hook in pre-task-log post-edit-flag post-edit-commit-reminder; do
+  if [[ -f "${TOOLKIT_DIR}/hooks/${hook}.sh" ]]; then
+    cp "${TOOLKIT_DIR}/hooks/${hook}.sh" "${CLAUDE_HOME}/hooks/${hook}.sh"
+    chmod +x "${CLAUDE_HOME}/hooks/${hook}.sh"
+  fi
+done
 
 cp "${TOOLKIT_DIR}/agent-factory/scripts/agent-factory.sh" \
    "${CLAUDE_HOME}/scripts/agent-factory.sh"

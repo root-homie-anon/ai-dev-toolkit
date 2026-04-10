@@ -38,12 +38,13 @@ check "settings.json exists"      "[[ -f '${CLAUDE_HOME}/settings.json' ]]"
 check "skills-library.json exists" "[[ -f '${CLAUDE_HOME}/skills-library.json' ]]"
 echo ""
 
-echo -e "${BOLD}Agents (12 expected)${RESET}"
+echo -e "${BOLD}Agents (15 expected)${RESET}"
 AGENT_COUNT=$(find "${CLAUDE_HOME}/agents" -name '*.md' 2>/dev/null | wc -l)
 check "Agents directory exists"    "[[ -d '${CLAUDE_HOME}/agents' ]]"
-check "12 agents installed"        "[[ ${AGENT_COUNT} -ge 12 ]]"
+check "15 agents installed"        "[[ ${AGENT_COUNT} -ge 15 ]]"
 for agent in architect bug-hunter chief-of-ops claude-specialist code-reviewer \
-             database-reviewer devops frontend qa refactor-cleaner security-reviewer sr-dev; do
+             data-engineer database-reviewer designer devops frontend product-lead \
+             qa refactor-cleaner security-reviewer sr-dev; do
   check "  ${agent}" "[[ -f '${CLAUDE_HOME}/agents/${agent}.md' ]]"
 done
 echo ""
@@ -54,10 +55,19 @@ check "Skills directory exists"    "[[ -d '${CLAUDE_HOME}/skills' ]]"
 check "18 skills installed"        "[[ ${SKILL_COUNT} -ge 15 ]]"
 echo ""
 
+echo -e "${BOLD}Rules (canonical domain conventions)${RESET}"
+check "Rules directory exists"     "[[ -d '${CLAUDE_HOME}/rules' ]]"
+check "supabase.md installed"      "[[ -f '${CLAUDE_HOME}/rules/supabase.md' ]]"
+echo ""
+
 echo -e "${BOLD}Hooks & Scripts${RESET}"
-check "session-start.sh exists"    "[[ -x '${CLAUDE_HOME}/hooks/session-start.sh' ]]"
-check "orchestrator.sh exists"     "[[ -x '${CLAUDE_HOME}/hooks/orchestrator.sh' ]]"
-check "agent-factory.sh exists"    "[[ -x '${CLAUDE_HOME}/scripts/agent-factory.sh' ]]"
+check "session-start.sh exists"           "[[ -x '${CLAUDE_HOME}/hooks/session-start.sh' ]]"
+check "orchestrator.sh exists"            "[[ -x '${CLAUDE_HOME}/hooks/orchestrator.sh' ]]"
+check "pre-task-log.sh exists"            "[[ -x '${CLAUDE_HOME}/hooks/pre-task-log.sh' ]]"
+check "post-edit-flag.sh exists"          "[[ -x '${CLAUDE_HOME}/hooks/post-edit-flag.sh' ]]"
+check "post-edit-commit-reminder.sh exists" "[[ -x '${CLAUDE_HOME}/hooks/post-edit-commit-reminder.sh' ]]"
+check "agent-factory.sh exists"           "[[ -x '${CLAUDE_HOME}/scripts/agent-factory.sh' ]]"
+check "logs directory exists"             "[[ -d '${CLAUDE_HOME}/logs' ]]"
 echo ""
 
 echo -e "${BOLD}KeyMaster${RESET}"

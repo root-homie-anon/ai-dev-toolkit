@@ -63,6 +63,8 @@ mkdir -p "${CLAUDE_HOME}/skills"
 mkdir -p "${CLAUDE_HOME}/scripts"
 mkdir -p "${CLAUDE_HOME}/hooks"
 mkdir -p "${CLAUDE_HOME}/agents"
+mkdir -p "${CLAUDE_HOME}/rules"
+mkdir -p "${CLAUDE_HOME}/logs"
 mkdir -p "${HOME}/bin"
 mkdir -p "${HOME}/.keys"
 mkdir -p "${HOME}/projects"
@@ -124,6 +126,20 @@ for skill_dir in "${TOOLKIT_DIR}/skills/"*/; do
   fi
 done
 
+# ── Rules (canonical domain conventions) ──────────────────────
+header "Rules"
+
+if [[ -d "${TOOLKIT_DIR}/rules" ]]; then
+  for rule_file in "${TOOLKIT_DIR}/rules/"*.md; do
+    [[ -f "$rule_file" ]] || continue
+    name="$(basename "$rule_file")"
+    cp "$rule_file" "${CLAUDE_HOME}/rules/${name}"
+    success "Rule installed: ${name%.md}"
+  done
+else
+  log "No rules directory in toolkit — skipping"
+fi
+
 # ── Hooks & Scripts ───────────────────────────────────────────
 header "Hooks & Scripts"
 
@@ -136,6 +152,15 @@ cp "${TOOLKIT_DIR}/hooks/orchestrator.sh" \
    "${CLAUDE_HOME}/hooks/orchestrator.sh"
 chmod +x "${CLAUDE_HOME}/hooks/orchestrator.sh"
 success "hooks/orchestrator.sh installed"
+
+# Team Operating Model enforcement hooks (tool-call hooks)
+for hook in pre-task-log post-edit-flag post-edit-commit-reminder; do
+  if [[ -f "${TOOLKIT_DIR}/hooks/${hook}.sh" ]]; then
+    cp "${TOOLKIT_DIR}/hooks/${hook}.sh" "${CLAUDE_HOME}/hooks/${hook}.sh"
+    chmod +x "${CLAUDE_HOME}/hooks/${hook}.sh"
+    success "hooks/${hook}.sh installed"
+  fi
+done
 
 cp "${TOOLKIT_DIR}/agent-factory/scripts/agent-factory.sh" \
    "${CLAUDE_HOME}/scripts/agent-factory.sh"
@@ -217,11 +242,12 @@ echo -e "${GREEN}${BOLD}  Setup Complete${RESET}"
 echo -e "${GREEN}${BOLD}======================================${RESET}"
 echo ""
 echo "  Installed:"
-echo "    12 production agents"
+echo "    15 production agents (incl. Priya, Iris, Nico)"
 echo "    18 skills"
+echo "    Rules (~/.claude/rules/ — canonical domain conventions)"
 echo "    KeyMaster (~/bin/keymaster)"
-echo "    Global CLAUDE.md + settings.json"
-echo "    Hooks + agent factory"
+echo "    Global CLAUDE.md + settings.json (with Team Operating Model hooks)"
+echo "    Hooks (orchestrator + tool-call enforcement) + agent factory"
 echo "    Bash aliases (cc, ccnew)"
 echo "    Vincent (Project Lead) template in project-agents/"
 echo ""

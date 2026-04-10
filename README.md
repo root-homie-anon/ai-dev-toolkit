@@ -47,22 +47,27 @@ cd ~/projects/my-app && ccnew
 
 ### Permanent Team (Global — available in every project)
 
-12 production agents with rich instructions, protocols, handoff patterns, and delegation boundaries. Each owns a specific domain and knows who to hand off to for adjacent concerns.
+15 production agents with rich instructions, protocols, handoff patterns, and delegation boundaries. Each owns a specific domain and knows who to hand off to for adjacent concerns. Several agents form **Pods** (paired delivery) for work that requires closely-related specialists to collaborate from start to finish.
 
-| Agent | Alias | Title | Level |
-|-------|-------|-------|-------|
-| `chief-of-ops` | **Marcus** | Chief Operating Officer | System |
-| `architect` | **Tony** | Lead Architect | Project |
-| `sr-dev` | **Doug** | Senior Software Engineer | Project |
-| `frontend` | **Ava** | Senior Frontend Engineer | Project |
-| `bug-hunter` | **Nate** | Root Cause Analyst | Project |
-| `code-reviewer` | **Linda** | Code Quality Lead | Project |
-| `database-reviewer` | **Omar** | Database Engineer | Project |
-| `security-reviewer` | **Elliot** | Application Security Engineer | Project |
-| `devops` | **Ray** | Infrastructure & Automation Engineer | System |
-| `qa` | **Chris** | QA & Test Automation Engineer | Project |
-| `refactor-cleaner` | **Mark** | Tech Debt Specialist | Project |
-| `claude-specialist` | **Jared** | Budget & Platform Specialist | System |
+| Agent | Alias | Title | Pod / Pair |
+|-------|-------|-------|------------|
+| `chief-of-ops` | **Marcus** | Chief Operating Officer / Project Partner | — (runs the team) |
+| `architect` | **Tony** | Lead Architect | Backend Pod (architecture partner to Doug) |
+| `product-lead` | **Priya** | Product Lead / Discovery Partner | **Discovery Pod** with Iris |
+| `designer` | **Iris** | UX/UI Designer | **Discovery Pod** with Priya; design partner to Ava |
+| `sr-dev` | **Doug** | Senior Software Engineer | **Backend Pod** lead; full-stack pair with Ava |
+| `frontend` | **Ava** | Senior Frontend Engineer | **Frontend Pod** lead; full-stack pair with Doug |
+| `database-reviewer` | **Omar** | Database Engineer | **Data Pod** co-lead with Nico |
+| `data-engineer` | **Nico** | Data Engineer / Analytics Lead | **Data Pod** co-lead with Omar |
+| `security-reviewer` | **Elliot** | Application Security Engineer | — |
+| `code-reviewer` | **Linda** | Code Quality Lead | — |
+| `bug-hunter` | **Nate** | Root Cause Analyst | — |
+| `devops` | **Ray** | Infrastructure & Automation Engineer | — (owns git end-to-end) |
+| `qa` | **Chris** | QA & Test Automation Engineer | — |
+| `refactor-cleaner` | **Mark** | Tech Debt Specialist | — |
+| `claude-specialist` | **Jared** | Budget & Platform Specialist | — |
+
+**Pods** are collaborative delivery relationships, not sequential handoffs. Pod members work together from the start of a task, fill each other's gaps, and sign off on one shared output. See `global/CLAUDE.md` (Team Operating Model) for full details.
 
 ### Project Lead (Per-project — scaffolded from template)
 
@@ -118,15 +123,16 @@ Jared tracks spend, flags budget alerts, optimizes tooling
 
 | Folder | What It Does |
 |--------|-------------|
-| `agents/` | 12 global production agents (the permanent team) |
+| `agents/` | 15 global production agents (the permanent team) |
 | `project-agents/` | Vincent (Project Lead) template |
 | `skills/` | 18 bundled skills mapped to agents |
-| `global/` | Global CLAUDE.md, settings.json, skills-library.json |
+| `rules/` | Canonical domain conventions referenced by all agents (e.g. `supabase.md`) |
+| `global/` | Global `CLAUDE.md`, `settings.json` (with hooks wired in), `skills-library.json` |
 | `agent-factory/` | On-demand bench agent creation (hooks + scripts) |
 | `keymaster/` | Centralized API key management + vault migration |
 | `claude-md-templates/` | 8 stack templates + project skeleton |
 | `dotfiles/` | Bash aliases (cc, ccnew) and PATH setup |
-| `hooks/` | Hook orchestrator — chains all system hooks |
+| `hooks/` | Hook orchestrator + Team Operating Model tool-call enforcement hooks |
 | `prompts/` | Reusable prompts (including claude.ai project planning) |
 | `references/` | Slash commands reference, tool docs |
 | `standards/` | Code standards, commit conventions |
